@@ -1,6 +1,7 @@
 use aletheia::engine::session::Session;
 use aletheia::engine::fuzzer::Fuzzer;
 use aletheia::engine::symbolic::check_mathematical_equivalence;
+use aletheia::ipc::mcp::run_mcp_server;
 use std::env;
 use std::time::Instant;
 
@@ -8,16 +9,22 @@ fn main() {
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
         println!("Aletheia: Ultra-Low-Latency In-Memory Verification Engine (Free Tier)");
-        println!("Usage: aletheia <eval|equiv|telemetry|fuzz|benchmark> [args...]");
+        println!("Usage: aletheia <eval|equiv|telemetry|fuzz|benchmark|mcp> [args...]");
         println!("  aletheia eval \"comb(100, 50)\" [max_fuel]");
         println!("  aletheia equiv \"(x + 1)^2\" \"x^2 + 2*x + 1\"");
         println!("  aletheia telemetry \"x = 100\"");
         println!("  aletheia fuzz 1000");
         println!("  aletheia benchmark");
+        println!("  aletheia mcp (starts Model Context Protocol server over stdio)");
         return;
     }
 
     match args[1].as_str() {
+        "mcp" => {
+            if let Err(e) = run_mcp_server() {
+                eprintln!("MCP Server error: {}", e);
+            }
+        }
         "eval" => {
             let expr = args.get(2).map(|s| s.as_str()).unwrap_or("comb(100, 50)");
             let fuel = args.get(3).and_then(|s| s.parse().ok()).unwrap_or(500_000);
