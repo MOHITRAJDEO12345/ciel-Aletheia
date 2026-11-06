@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Ultra-low-latency in-memory fuel-metered verification engine for AI reasoning and RL rollouts"
 readme = "README.md"
 authors = [{ name = "Mohit Rajdeo", email = "mohit@theeducode.com" }]
-license = { text = "Apache-2.0" }
+license = "Apache-2.0"
 classifiers = [
     "Programming Language :: Python :: 3",
     "Operating System :: OS Independent",

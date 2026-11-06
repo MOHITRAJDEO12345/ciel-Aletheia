@@ -4,7 +4,7 @@ Escalation bridge connecting free Aletheia in-memory sessions to paid Thanaton C
 
 def escalate_to_thanaton(session_state: dict, api_key: str = None):
     """
-    Elevate an in-memory session into a running Thanaton hardware Firecracker MicroVM
+    Elevate an in-memory session into a running Thanaton Hardware MicroVM
     and attach an ephemeral Mnemon-DB branch, preserving all variables and context.
     """
     print("[Ananke Escalation Bridge] Upgrading session from Aletheia (Free) to Thanaton (Enterprise)...")
@@ -14,6 +14,6 @@ def escalate_to_thanaton(session_state: dict, api_key: str = None):
         "status": "escalated",
         "runtime": "thanaton-microvm",
         "boot_latency_ms": 7.42,
-        "database": "mnemon-reflink-postgres-16",
+        "database": "mnemon-branch-v1",
         "variables_restored": len(session_state),
     }

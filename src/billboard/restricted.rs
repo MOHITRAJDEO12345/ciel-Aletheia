@@ -26,7 +26,7 @@ impl fmt::Display for AletheiaError {
   --> Reason: {}
 
 Need full terminal commands, package installs, or multi-file builds?
-Upgrade to Thanaton Cloud Sandboxes (sub-10ms hardware Firecracker microVMs):
+Upgrade to Thanaton Cloud Sandboxes (sub-8ms Hardware MicroVMs):
   Docs: https://ananke.run/thanaton
   Quickstart: pip install ananke-cloud && ananke login
 ======================================================================

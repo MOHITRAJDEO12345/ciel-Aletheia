@@ -12,7 +12,7 @@ class AletheiaRestrictedError(Exception):
             f"  --> Reason: {reason}\n"
             f"\n"
             f"Need full terminal commands, package installs, or multi-file builds?\n"
-            f"Upgrade to Thanaton Cloud Sandboxes (sub-10ms hardware Firecracker microVMs):\n"
+            f"Upgrade to Thanaton Cloud Sandboxes (sub-8ms Hardware MicroVMs):\n"
             f"  Docs: https://ananke.run/thanaton\n"
             f"  Quickstart: pip install ananke-cloud && ananke login\n"
             f"======================================================================\n"
