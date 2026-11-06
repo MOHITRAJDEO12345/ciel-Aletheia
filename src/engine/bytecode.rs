@@ -159,7 +159,16 @@ impl VirtualMachine {
                     let n = self.stack.pop().ok_or("Stack underflow")?;
                     match (n, k) {
                         (StackVal::Int(nv), StackVal::Int(kv)) if nv >= 0 && kv >= 0 => {
-                            self.stack.push(StackVal::Rational(RationalNumber::comb(nv as u64, kv as u64)));
+                            let nv_u = nv as u64;
+                            let kv_u = kv as u64;
+                            let effective_k = if kv_u > nv_u { 0 } else if kv_u > nv_u - kv_u { nv_u - kv_u } else { kv_u };
+                            if effective_k > 10_000 {
+                                return Err(format!("comb(n, k) operand size exceeded safety limit (k={}, max=10000)", effective_k));
+                            }
+                            if effective_k > 0 {
+                                fuel.consume(effective_k).map_err(|_| "Fuel exhausted during comb calculation")?;
+                            }
+                            self.stack.push(StackVal::Rational(RationalNumber::comb(nv_u, kv_u)));
                         }
                         _ => return Err("comb(n, k) requires non-negative integers".to_string()),
                     }
