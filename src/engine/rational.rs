@@ -91,3 +91,29 @@ impl fmt::Debug for RationalNumber {
         write!(f, "Rational({})", self)
     }
 }
+
+impl serde::Serialize for RationalNumber {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for RationalNumber {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        if let Some(pos) = s.find('/') {
+            let num = s[..pos].parse::<i64>().map_err(serde::de::Error::custom)?;
+            let den = s[pos + 1..].parse::<i64>().map_err(serde::de::Error::custom)?;
+            Ok(RationalNumber::new(num, den))
+        } else {
+            let val = s.parse::<i64>().map_err(serde::de::Error::custom)?;
+            Ok(RationalNumber::from_i64(val))
+        }
+    }
+}

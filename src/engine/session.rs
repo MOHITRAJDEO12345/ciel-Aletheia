@@ -48,6 +48,11 @@ impl Session {
         }
     }
 
+    /// Serialize session environment variables to JSON for state preservation across tiers
+    pub fn serialize_env_json(&self) -> serde_json::Value {
+        serde_json::to_value(&self.env).unwrap_or(serde_json::json!({}))
+    }
+
     /// Check if two algebraic or math expressions are mathematically equivalent in < 10µs.
     /// E.g. (x + 1)^2 == x^2 + 2*x + 1
     pub fn check_equivalence(&self, expr_a: &str, expr_b: &str) -> Result<bool, AletheiaError> {
@@ -57,12 +62,14 @@ impl Session {
 
     /// Execute expression / code snippet within this session context.
     pub fn eval(&mut self, code_text: &str) -> Result<Value, AletheiaError> {
+        let env_snapshot = self.serialize_env_json();
+
         // Intercept forbidden calls (os, sys, subprocess, bash, disk, network)
-        check_prohibited_patterns(code_text)?;
+        check_prohibited_patterns(code_text, Some(&env_snapshot))?;
 
         // Variable assignment: name = expr
         if let Some((var, expr)) = parse_assignment(code_text) {
-            let ops = parse_simple_expression(expr)?;
+            let ops = parse_simple_expression(expr, Some(&env_snapshot))?;
             let fuel_meter = FuelMeter::new(self.fuel);
             let mut vm = VirtualMachine::new();
             vm.env = self.env.clone();
@@ -77,7 +84,7 @@ impl Session {
             };
         }
 
-        let ops = parse_simple_expression(code_text)?;
+        let ops = parse_simple_expression(code_text, Some(&env_snapshot))?;
         let fuel_meter = FuelMeter::new(self.fuel);
         let mut vm = VirtualMachine::new();
         vm.env = self.env.clone();
@@ -139,8 +146,36 @@ fn parse_assignment(code: &str) -> Option<(&str, &str)> {
     None
 }
 
-fn parse_simple_expression(expr: &str) -> Result<Vec<Op>, AletheiaError> {
+fn parse_simple_expression(expr: &str, state: Option<&serde_json::Value>) -> Result<Vec<Op>, AletheiaError> {
     let trimmed = expr.trim();
+
+    // Intercept common terminal / shell / package manager commands
+    let bash_verbs = [
+        ("npm ", crate::billboard::restricted::EscalationCapability::RequiresPackages),
+        ("pip ", crate::billboard::restricted::EscalationCapability::RequiresPackages),
+        ("yarn ", crate::billboard::restricted::EscalationCapability::RequiresPackages),
+        ("pnpm ", crate::billboard::restricted::EscalationCapability::RequiresPackages),
+        ("cargo ", crate::billboard::restricted::EscalationCapability::RequiresPackages),
+        ("apt ", crate::billboard::restricted::EscalationCapability::RequiresPackages),
+        ("curl ", crate::billboard::restricted::EscalationCapability::RequiresNetwork),
+        ("wget ", crate::billboard::restricted::EscalationCapability::RequiresNetwork),
+        ("bash ", crate::billboard::restricted::EscalationCapability::RequiresBash),
+        ("git ", crate::billboard::restricted::EscalationCapability::RequiresBash),
+        ("docker ", crate::billboard::restricted::EscalationCapability::RequiresBash),
+        ("sudo ", crate::billboard::restricted::EscalationCapability::RequiresBash),
+        ("make ", crate::billboard::restricted::EscalationCapability::RequiresBash),
+    ];
+    for (verb, cap) in bash_verbs {
+        if trimmed.starts_with(verb) {
+            return Err(AletheiaError::RestrictedOperation {
+                capability: cap,
+                attempted: verb.trim().to_string(),
+                reason: format!("Shell command '{}' requires full Linux userspace in Thanaton MicroVM", verb.trim()),
+                upgrade_code: "sandbox = ananke.upgrade_to_thanaton(session)".to_string(),
+                serialized_state: state.cloned().unwrap_or(serde_json::json!({})),
+            });
+        }
+    }
 
     // Check for comb(n, k)
     if trimmed.starts_with("comb(") && trimmed.ends_with(')') {

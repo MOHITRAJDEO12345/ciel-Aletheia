@@ -44,6 +44,53 @@ fn test_smart_exception_billboard() {
 }
 
 #[test]
+fn test_structured_escalation_path() {
+    use aletheia::billboard::restricted::EscalationCapability;
+
+    let mut s = Session::new(100_000);
+    // 1. Seed state in Tier 0
+    let _ = s.eval("x = 42");
+
+    // 2. Attempt filesystem access
+    let fs_res = s.eval("with open('/etc/hosts') as f: data = f.read()");
+    match fs_res {
+        Err(AletheiaError::RestrictedOperation {
+            capability,
+            attempted,
+            upgrade_code,
+            serialized_state,
+            ..
+        }) => {
+            assert_eq!(capability, EscalationCapability::RequiresFilesystem);
+            assert_eq!(attempted, "open(");
+            assert_eq!(upgrade_code, "sandbox = ananke.upgrade_to_thanaton(session)");
+            assert!(serialized_state.get("x").is_some(), "State 'x' must be preserved in escalation error");
+        }
+        _ => panic!("Expected filesystem restricted operation"),
+    }
+
+    // 3. Attempt package installation
+    let pkg_res = s.eval("npm install express");
+    match pkg_res {
+        Err(AletheiaError::RestrictedOperation { capability, attempted, .. }) => {
+            assert_eq!(capability, EscalationCapability::RequiresPackages);
+            assert_eq!(attempted, "npm install");
+        }
+        _ => panic!("Expected packages restricted operation"),
+    }
+
+    // 4. Attempt socket connection
+    let net_res = s.eval("import socket; s = socket.socket()");
+    match net_res {
+        Err(AletheiaError::RestrictedOperation { capability, attempted, .. }) => {
+            assert_eq!(capability, EscalationCapability::RequiresNetwork);
+            assert_eq!(attempted, "import socket");
+        }
+        _ => panic!("Expected network restricted operation"),
+    }
+}
+
+#[test]
 fn test_instant_micro_fuzzer() {
     let res = Fuzzer::fuzz_invariant(|x| x.saturating_add(0) == x, 1000);
     assert!(res.passed);

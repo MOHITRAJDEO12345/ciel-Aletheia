@@ -157,7 +157,29 @@ fn handle_mcp_request(method: &str, params: Option<Value>, id: Value) -> JsonRpc
                             JsonRpcResponse { jsonrpc: "2.0".to_string(), id, result: Some(result), error: None }
                         }
                         Err(e) => {
-                            let err_json = json!({ "code": -32000, "message": format!("{}", e) });
+                            let err_json = match &e {
+                                crate::billboard::restricted::AletheiaError::RestrictedOperation {
+                                    capability,
+                                    attempted,
+                                    reason,
+                                    upgrade_code,
+                                    serialized_state,
+                                } => {
+                                    json!({
+                                        "code": -32001,
+                                        "message": format!("EscalationRequired: Operation requires {} - {}", capability.as_str(), reason),
+                                        "data": {
+                                            "error": "ESCALATION_REQUIRED",
+                                            "capability": capability.as_str(),
+                                            "attempted": attempted,
+                                            "reason": reason,
+                                            "upgrade_code": upgrade_code,
+                                            "serialized_state": serialized_state,
+                                        }
+                                    })
+                                }
+                                _ => json!({ "code": -32000, "message": format!("{}", e) }),
+                            };
                             JsonRpcResponse { jsonrpc: "2.0".to_string(), id, result: None, error: Some(err_json) }
                         }
                     }

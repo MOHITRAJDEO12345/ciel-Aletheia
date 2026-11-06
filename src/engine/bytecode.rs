@@ -23,7 +23,8 @@ pub enum Op {
     Return,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "type", content = "value")]
 pub enum StackVal {
     Int(i64),
     Rational(RationalNumber),
