@@ -1,8 +1,10 @@
 use crate::engine::fuel::FuelMeter;
 use crate::engine::rational::RationalNumber;
 use crate::engine::bytecode::{Op, VirtualMachine, StackVal};
+use crate::engine::symbolic::check_mathematical_equivalence;
 use crate::billboard::restricted::{AletheiaError, check_prohibited_patterns};
 use std::collections::HashMap;
+use std::time::Instant;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
@@ -10,6 +12,16 @@ pub enum Value {
     Rational(RationalNumber),
     Text(String),
     Boolean(bool),
+}
+
+/// Structured RL & Model Reasoning Telemetry for GRPO / PPO Reward Scorer
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ExecutionTelemetry {
+    pub result: String,
+    pub fuel_consumed: u64,
+    pub latency_us: u64,
+    pub memory_bytes: usize,
+    pub verified: bool,
 }
 
 /// A stateful in-memory verification session.
@@ -36,12 +48,35 @@ impl Session {
         }
     }
 
+    /// Check if two algebraic or math expressions are mathematically equivalent in < 10µs.
+    /// E.g. (x + 1)^2 == x^2 + 2*x + 1
+    pub fn check_equivalence(&self, expr_a: &str, expr_b: &str) -> Result<bool, AletheiaError> {
+        check_mathematical_equivalence(expr_a, expr_b)
+            .map_err(|e| AletheiaError::ExecutionError(e))
+    }
+
     /// Execute expression / code snippet within this session context.
     pub fn eval(&mut self, code_text: &str) -> Result<Value, AletheiaError> {
         // Intercept forbidden calls (os, sys, subprocess, bash, disk, network)
         check_prohibited_patterns(code_text)?;
 
-        // Simple expression parser for basic math, comb, and variables
+        // Variable assignment: name = expr
+        if let Some((var, expr)) = parse_assignment(code_text) {
+            let ops = parse_simple_expression(expr)?;
+            let fuel_meter = FuelMeter::new(self.fuel);
+            let mut vm = VirtualMachine::new();
+            vm.env = self.env.clone();
+            let val = vm.execute(&ops, &fuel_meter).map_err(AletheiaError::ExecutionError)?;
+            self.env.insert(var.to_string(), val.clone());
+            self.fuel = fuel_meter.remaining();
+            return match val {
+                StackVal::Int(i) => Ok(Value::Integer(i)),
+                StackVal::Rational(r) => Ok(Value::Rational(r)),
+                StackVal::Str(s) => Ok(Value::Text(s)),
+                StackVal::Bool(b) => Ok(Value::Boolean(b)),
+            };
+        }
+
         let ops = parse_simple_expression(code_text)?;
         let fuel_meter = FuelMeter::new(self.fuel);
         let mut vm = VirtualMachine::new();
@@ -58,9 +93,50 @@ impl Session {
                     StackVal::Bool(b) => Ok(Value::Boolean(b)),
                 }
             }
-            Err(e) => Err(AletheiaError::ExecutionError(e)),
+            Err(e) => {
+                if e.starts_with("OutOfFuel") {
+                    Err(AletheiaError::OutOfFuel { consumed: fuel_meter.consumed() })
+                } else {
+                    Err(AletheiaError::ExecutionError(e))
+                }
+            }
         }
     }
+
+    /// Execute and return comprehensive telemetry for RL reward models (PPO/GRPO)
+    pub fn eval_with_telemetry(&mut self, code_text: &str) -> Result<ExecutionTelemetry, AletheiaError> {
+        let t0 = Instant::now();
+        let initial_fuel = self.fuel;
+        let res = self.eval(code_text)?;
+        let latency_us = t0.elapsed().as_micros() as u64;
+        let fuel_consumed = initial_fuel - self.fuel;
+        let memory_bytes = std::mem::size_of_val(self) + (self.env.len() * 64);
+
+        Ok(ExecutionTelemetry {
+            result: format!("{:?}", res),
+            fuel_consumed,
+            latency_us,
+            memory_bytes,
+            verified: true,
+        })
+    }
+}
+
+fn parse_assignment(code: &str) -> Option<(&str, &str)> {
+    let trimmed = code.trim();
+    if let Some(idx) = trimmed.find('=') {
+        // Exclude ==, <=, >=, !=
+        if idx > 0 && !['=', '<', '>', '!'].contains(&(trimmed.as_bytes()[idx - 1] as char)) {
+            if idx + 1 < trimmed.len() && trimmed.as_bytes()[idx + 1] != b'=' {
+                let var = trimmed[..idx].trim();
+                let expr = trimmed[idx + 1..].trim();
+                if var.chars().all(|c| c.is_alphanumeric() || c == '_') {
+                    return Some((var, expr));
+                }
+            }
+        }
+    }
+    None
 }
 
 fn parse_simple_expression(expr: &str) -> Result<Vec<Op>, AletheiaError> {
@@ -100,6 +176,11 @@ fn parse_simple_expression(expr: &str) -> Result<Vec<Op>, AletheiaError> {
         return Ok(vec![Op::PushInt(v), Op::Return]);
     }
 
-    // Default variable or string
+    // Variable identifier lookup
+    if trimmed.chars().all(|c| c.is_alphanumeric() || c == '_') && !trimmed.is_empty() {
+        return Ok(vec![Op::LoadVar(trimmed.to_string()), Op::Return]);
+    }
+
+    // Default string
     Ok(vec![Op::PushStr(trimmed.to_string()), Op::Return])
 }

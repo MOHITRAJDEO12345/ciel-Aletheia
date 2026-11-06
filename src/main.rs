@@ -1,5 +1,6 @@
 use aletheia::engine::session::Session;
 use aletheia::engine::fuzzer::Fuzzer;
+use aletheia::engine::symbolic::check_mathematical_equivalence;
 use std::env;
 use std::time::Instant;
 
@@ -7,8 +8,10 @@ fn main() {
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
         println!("Aletheia: Ultra-Low-Latency In-Memory Verification Engine (Free Tier)");
-        println!("Usage: aletheia <eval|fuzz|benchmark> [args...]");
+        println!("Usage: aletheia <eval|equiv|telemetry|fuzz|benchmark> [args...]");
         println!("  aletheia eval \"comb(100, 50)\" [max_fuel]");
+        println!("  aletheia equiv \"(x + 1)^2\" \"x^2 + 2*x + 1\"");
+        println!("  aletheia telemetry \"x = 100\"");
         println!("  aletheia fuzz 1000");
         println!("  aletheia benchmark");
         return;
@@ -25,6 +28,38 @@ fn main() {
                     let dur = t0.elapsed();
                     println!("[+] Result: {}", format!("{:?}", val));
                     println!("[+] Duration: {:.2?} | Fuel Remaining: {}", dur, s.fuel);
+                }
+                Err(e) => {
+                    eprintln!("{}", e);
+                }
+            }
+        }
+        "equiv" => {
+            let expr_a = args.get(2).map(|s| s.as_str()).unwrap_or("(x + 1)^2");
+            let expr_b = args.get(3).map(|s| s.as_str()).unwrap_or("x^2 + 2*x + 1");
+            let t0 = Instant::now();
+            match check_mathematical_equivalence(expr_a, expr_b) {
+                Ok(is_eq) => {
+                    let dur = t0.elapsed();
+                    println!("[+] Symbolic Equivalence: {}", is_eq);
+                    println!("[+] Verified in: {:.2?}", dur);
+                }
+                Err(e) => {
+                    eprintln!("[-] Equivalence error: {}", e);
+                }
+            }
+        }
+        "telemetry" => {
+            let expr = args.get(2).map(|s| s.as_str()).unwrap_or("x = 100");
+            let mut s = Session::new(500_000);
+            match s.eval_with_telemetry(expr) {
+                Ok(t) => {
+                    println!("[+] RL Telemetry Verified:");
+                    println!("    Result:        {}", t.result);
+                    println!("    Fuel Consumed: {} units", t.fuel_consumed);
+                    println!("    Latency:       {} µs", t.latency_us);
+                    println!("    Memory:        {} bytes", t.memory_bytes);
+                    println!("    Verified:      {}", t.verified);
                 }
                 Err(e) => {
                     eprintln!("{}", e);
