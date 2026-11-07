@@ -1,5 +1,6 @@
 import { AletheiaRestrictedError } from "./exceptions.js";
 import { escalateToThanaton, ThanatonEscalationResult } from "./bridge.js";
+import vm from "node:vm";
 
 export interface FuzzResult {
   totalCases: number;
@@ -59,23 +60,25 @@ export class Verifier {
    * E.g. (x + 1)^2 == x^2 + 2*x + 1
    */
   public equiv(exprA: string, exprB: string): boolean {
-    const cleanA = exprA.replace(/\^/g, "**");
-    const cleanB = exprB.replace(/\^/g, "**");
+    const cleanA = exprA.replace(/\^/g, "**").replace(/(\d+)n\b/g, "$1");
+    const cleanB = exprB.replace(/\^/g, "**").replace(/(\d+)n\b/g, "$1");
 
     // Schwartz-Zippel test points
     const testPoints = [
-      { x: 2n, y: 3n, z: 5n },
-      { x: 7n, y: 11n, z: 13n },
-      { x: -3n, y: -5n, z: 4n },
-      { x: 100n, y: 200n, z: 300n },
-      { x: 0n, y: 1n, z: -1n },
+      { x: 2, y: 3, z: 5 },
+      { x: 7, y: 11, z: 13 },
+      { x: -3, y: -5, z: 4 },
+      { x: 100, y: 200, z: 300 },
+      { x: 0, y: 1, z: -1 },
     ];
 
     for (const pt of testPoints) {
       try {
-        const fnA = new Function(...Object.keys(pt), `return BigInt(${cleanA});`);
-        const fnB = new Function(...Object.keys(pt), `return BigInt(${cleanB});`);
-        if (fnA(...Object.values(pt)) !== fnB(...Object.values(pt))) {
+        const fnA = new Function(...Object.keys(pt), `return Number(${cleanA});`);
+        const fnB = new Function(...Object.keys(pt), `return Number(${cleanB});`);
+        const valA = fnA(...Object.values(pt));
+        const valB = fnB(...Object.values(pt));
+        if (Math.abs(valA - valB) > 1e-6) {
           return false;
         }
       } catch {
@@ -97,7 +100,10 @@ export class Verifier {
       ["fs.", "Direct host filesystem I/O requires Thanaton Cloud MicroVMs"],
       ["require('fs')", "Direct filesystem access is restricted in memory-only verification"],
       ["require('child_process')", "Subprocess spawning requires Thanaton Cloud MicroVMs"],
+      ["require(", "Dynamic module loading is restricted in memory-only verification"],
       ["fetch(", "Network sockets and raw HTTP requests are disabled for safety"],
+      ["process", "Host process environment is stripped in memory-only verification"],
+      ["globalThis", "Global scope inspection is disabled in memory-only verification"],
     ];
 
     for (const [pattern, reason] of forbidden) {
@@ -119,10 +125,28 @@ export class Verifier {
       return bigintComb(n, k);
     }
 
-    // Direct BigInt math evaluations
+    // Direct isolated context math evaluations
     try {
-      const fn = new Function(...Object.keys(this.env), `return (${code});`);
-      return fn(...Object.values(this.env));
+      const context = Object.create(null);
+      Object.assign(context, {
+        Math,
+        BigInt,
+        Number,
+        String,
+        Boolean,
+        Array,
+        Object,
+        comb: (n: number | bigint, k: number | bigint) => bigintComb(BigInt(n), BigInt(k)),
+        abs: Math.abs,
+        min: Math.min,
+        max: Math.max,
+        round: Math.round,
+        floor: Math.floor,
+        ceil: Math.ceil,
+        sqrt: Math.sqrt,
+        ...this.env,
+      });
+      return vm.runInNewContext(code, context, { timeout: 100 });
     } catch {
       return code;
     }

@@ -78,7 +78,13 @@ impl Session {
             self.fuel = fuel_meter.remaining();
             return match val {
                 StackVal::Int(i) => Ok(Value::Integer(i)),
-                StackVal::Rational(r) => Ok(Value::Rational(r)),
+                StackVal::Rational(r) => {
+                    if let Some(i) = r.to_i64() {
+                        Ok(Value::Integer(i))
+                    } else {
+                        Ok(Value::Rational(r))
+                    }
+                }
                 StackVal::Str(s) => Ok(Value::Text(s)),
                 StackVal::Bool(b) => Ok(Value::Boolean(b)),
             };
@@ -95,7 +101,13 @@ impl Session {
                 self.fuel = fuel_meter.remaining();
                 match val {
                     StackVal::Int(i) => Ok(Value::Integer(i)),
-                    StackVal::Rational(r) => Ok(Value::Rational(r)),
+                    StackVal::Rational(r) => {
+                        if let Some(i) = r.to_i64() {
+                            Ok(Value::Integer(i))
+                        } else {
+                            Ok(Value::Rational(r))
+                        }
+                    }
                     StackVal::Str(s) => Ok(Value::Text(s)),
                     StackVal::Bool(b) => Ok(Value::Boolean(b)),
                 }
@@ -177,38 +189,11 @@ fn parse_simple_expression(expr: &str, state: Option<&serde_json::Value>) -> Res
         }
     }
 
-    // Check for comb(n, k)
-    if trimmed.starts_with("comb(") && trimmed.ends_with(')') {
-        let inner = &trimmed[5..trimmed.len() - 1];
-        let parts: Vec<&str> = inner.split(',').map(|s| s.trim()).collect();
-        if parts.len() == 2 {
-            let n: i64 = parts[0].parse().map_err(|_| AletheiaError::ExecutionError("invalid n in comb".into()))?;
-            let k: i64 = parts[1].parse().map_err(|_| AletheiaError::ExecutionError("invalid k in comb".into()))?;
-            return Ok(vec![Op::PushInt(n), Op::PushInt(k), Op::Comb, Op::Return]);
+    // Attempt parsing as structured arithmetic expression via Shunting-Yard
+    if let Some(tokens) = tokenize_expression(trimmed) {
+        if let Some(ops) = parse_shunting_yard(&tokens) {
+            return Ok(ops);
         }
-    }
-
-    // Check for binary operations: a + b, a - b, a * b, a / b
-    for op_char in ['+', '-', '*', '/'] {
-        if let Some(pos) = trimmed.find(op_char) {
-            let left = trimmed[..pos].trim();
-            let right = trimmed[pos + 1..].trim();
-            if let (Ok(lv), Ok(rv)) = (left.parse::<i64>(), right.parse::<i64>()) {
-                let op = match op_char {
-                    '+' => Op::Add,
-                    '-' => Op::Sub,
-                    '*' => Op::Mul,
-                    '/' => Op::Div,
-                    _ => unreachable!(),
-                };
-                return Ok(vec![Op::PushInt(lv), Op::PushInt(rv), op, Op::Return]);
-            }
-        }
-    }
-
-    // Single integer
-    if let Ok(v) = trimmed.parse::<i64>() {
-        return Ok(vec![Op::PushInt(v), Op::Return]);
     }
 
     // Variable identifier lookup
@@ -218,4 +203,220 @@ fn parse_simple_expression(expr: &str, state: Option<&serde_json::Value>) -> Res
 
     // Default string
     Ok(vec![Op::PushStr(trimmed.to_string()), Op::Return])
+}
+
+#[derive(Debug, PartialEq)]
+enum Token {
+    Num(i64),
+    Var(String),
+    Comb(i64, i64),
+    Op(char),
+    LParen,
+    RParen,
+}
+
+fn tokenize_expression(expr: &str) -> Option<Vec<Token>> {
+    let mut tokens = Vec::new();
+    let bytes = expr.as_bytes();
+    let mut i = 0;
+    let n = bytes.len();
+
+    while i < n {
+        let b = bytes[i];
+        if b.is_ascii_whitespace() {
+            i += 1;
+            continue;
+        }
+
+        if b == b'(' {
+            tokens.push(Token::LParen);
+            i += 1;
+            continue;
+        }
+        if b == b')' {
+            tokens.push(Token::RParen);
+            i += 1;
+            continue;
+        }
+
+        // Skip comments: # or //
+        if b == b'#' || (b == b'/' && i + 1 < n && bytes[i + 1] == b'/') {
+            while i < n && bytes[i] != b'\n' {
+                i += 1;
+            }
+            continue;
+        }
+
+        if b == b'+' || b == b'*' || b == b'/' {
+            tokens.push(Token::Op(b as char));
+            i += 1;
+            continue;
+        }
+
+        if b == b'-' {
+            let is_unary = match tokens.last() {
+                None | Some(Token::Op(_)) | Some(Token::LParen) => true,
+                _ => false,
+            };
+            if is_unary && i + 1 < n && bytes[i + 1].is_ascii_digit() {
+                let start = i;
+                i += 1;
+                while i < n && bytes[i].is_ascii_digit() {
+                    i += 1;
+                }
+                let num_str = std::str::from_utf8(&bytes[start..i]).ok()?;
+                let val: i64 = num_str.parse().ok()?;
+                tokens.push(Token::Num(val));
+                continue;
+            } else {
+                tokens.push(Token::Op('-'));
+                i += 1;
+                continue;
+            }
+        }
+
+        if b.is_ascii_digit() {
+            let start = i;
+            while i < n && bytes[i].is_ascii_digit() {
+                i += 1;
+            }
+            let num_str = std::str::from_utf8(&bytes[start..i]).ok()?;
+            let val: i64 = num_str.parse().ok()?;
+            tokens.push(Token::Num(val));
+            continue;
+        }
+
+        if b.is_ascii_alphabetic() || b == b'_' {
+            let start = i;
+            while i < n && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'_') {
+                i += 1;
+            }
+            let ident = std::str::from_utf8(&bytes[start..i]).ok()?;
+
+            if ident == "comb" && i < n && bytes[i] == b'(' {
+                let paren_start = i;
+                let mut depth = 0;
+                let mut close_idx = None;
+                for j in paren_start..n {
+                    if bytes[j] == b'(' {
+                        depth += 1;
+                    } else if bytes[j] == b')' {
+                        depth -= 1;
+                        if depth == 0 {
+                            close_idx = Some(j);
+                            break;
+                        }
+                    }
+                }
+                if let Some(end) = close_idx {
+                    let inner = std::str::from_utf8(&bytes[paren_start + 1..end]).ok()?;
+                    let parts: Vec<&str> = inner.split(',').map(|s| s.trim()).collect();
+                    if parts.len() == 2 {
+                        let n_val: i64 = parts[0].parse().ok()?;
+                        let k_val: i64 = parts[1].parse().ok()?;
+                        tokens.push(Token::Comb(n_val, k_val));
+                        i = end + 1;
+                        continue;
+                    }
+                }
+            }
+
+            tokens.push(Token::Var(ident.to_string()));
+            continue;
+        }
+
+        return None;
+    }
+
+    if tokens.is_empty() {
+        None
+    } else {
+        Some(tokens)
+    }
+}
+
+fn parse_shunting_yard(tokens: &[Token]) -> Option<Vec<Op>> {
+    let mut output: Vec<Op> = Vec::new();
+    let mut op_stack: Vec<char> = Vec::new();
+
+    let precedence = |op: char| -> i32 {
+        match op {
+            '+' | '-' => 1,
+            '*' | '/' => 2,
+            _ => 0,
+        }
+    };
+
+    for token in tokens {
+        match token {
+            Token::Num(v) => output.push(Op::PushInt(*v)),
+            Token::Var(v) => output.push(Op::LoadVar(v.clone())),
+            Token::Comb(n, k) => {
+                output.push(Op::PushInt(*n));
+                output.push(Op::PushInt(*k));
+                output.push(Op::Comb);
+            }
+            Token::Op(op) => {
+                let p = precedence(*op);
+                while let Some(&top) = op_stack.last() {
+                    if top == '(' {
+                        break;
+                    }
+                    if precedence(top) >= p {
+                        op_stack.pop();
+                        match top {
+                            '+' => output.push(Op::Add),
+                            '-' => output.push(Op::Sub),
+                            '*' => output.push(Op::Mul),
+                            '/' => output.push(Op::Div),
+                            _ => return None,
+                        }
+                    } else {
+                        break;
+                    }
+                }
+                op_stack.push(*op);
+            }
+            Token::LParen => op_stack.push('('),
+            Token::RParen => {
+                let mut matched = false;
+                while let Some(top) = op_stack.pop() {
+                    if top == '(' {
+                        matched = true;
+                        break;
+                    }
+                    match top {
+                        '+' => output.push(Op::Add),
+                        '-' => output.push(Op::Sub),
+                        '*' => output.push(Op::Mul),
+                        '/' => output.push(Op::Div),
+                        _ => return None,
+                    }
+                }
+                if !matched {
+                    return None;
+                }
+            }
+        }
+    }
+
+    while let Some(top) = op_stack.pop() {
+        if top == '(' || top == ')' {
+            return None;
+        }
+        match top {
+            '+' => output.push(Op::Add),
+            '-' => output.push(Op::Sub),
+            '*' => output.push(Op::Mul),
+            '/' => output.push(Op::Div),
+            _ => return None,
+        }
+    }
+
+    if output.is_empty() {
+        return None;
+    }
+
+    output.push(Op::Return);
+    Some(output)
 }

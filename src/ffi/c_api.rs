@@ -30,7 +30,7 @@ pub extern "C" fn aletheia_eval(
     out_buf: *mut c_char,
     out_len: c_int,
 ) -> c_int {
-    if session.is_null() || code.is_null() || out_buf.is_null() {
+    if session.is_null() || code.is_null() || out_buf.is_null() || out_len <= 0 {
         return -1;
     }
 
@@ -58,7 +58,8 @@ pub extern "C" fn aletheia_eval(
             let err_str = e.to_string();
             let c_err = CString::new(err_str).unwrap_or_default();
             let bytes = c_err.as_bytes_with_nul();
-            let copy_len = bytes.len().min(out_len as usize - 1);
+            let max_len = (out_len as usize).saturating_sub(1);
+            let copy_len = bytes.len().min(max_len);
             unsafe {
                 std::ptr::copy_nonoverlapping(bytes.as_ptr() as *const c_char, out_buf, copy_len);
                 *out_buf.add(copy_len) = 0;

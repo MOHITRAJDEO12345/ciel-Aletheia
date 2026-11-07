@@ -118,12 +118,82 @@ JSON Metadata for Autonomous Agents:
 
 impl std::error::Error for AletheiaError {}
 
+fn strip_comments_and_strings(code: &str) -> String {
+    let mut result = String::with_capacity(code.len());
+    let mut in_single_quote = false;
+    let mut in_double_quote = false;
+    let mut in_comment = false;
+    let chars: Vec<char> = code.chars().collect();
+    let n = chars.len();
+    let mut i = 0;
+
+    while i < n {
+        let c = chars[i];
+        if in_comment {
+            if c == '\n' {
+                in_comment = false;
+                result.push('\n');
+            }
+            i += 1;
+            continue;
+        }
+
+        if in_single_quote {
+            if c == '\\' && i + 1 < n {
+                i += 2;
+                continue;
+            }
+            if c == '\'' {
+                in_single_quote = false;
+            }
+            i += 1;
+            continue;
+        }
+
+        if in_double_quote {
+            if c == '\\' && i + 1 < n {
+                i += 2;
+                continue;
+            }
+            if c == '"' {
+                in_double_quote = false;
+            }
+            i += 1;
+            continue;
+        }
+
+        // Check for comment start (# or //)
+        if c == '#' || (c == '/' && i + 1 < n && chars[i + 1] == '/') {
+            in_comment = true;
+            i += 1;
+            continue;
+        }
+
+        if c == '\'' {
+            in_single_quote = true;
+            i += 1;
+            continue;
+        }
+
+        if c == '"' {
+            in_double_quote = true;
+            i += 1;
+            continue;
+        }
+
+        result.push(c);
+        i += 1;
+    }
+
+    result
+}
+
 /// Check for forbidden imports, system commands, and syscall requests
 pub fn check_prohibited_patterns(
     code: &str,
     current_env: Option<&serde_json::Value>,
 ) -> Result<(), AletheiaError> {
-    let forbidden: [(&str, EscalationCapability, &str); 13] = [
+    let forbidden: [(&str, EscalationCapability, &str); 23] = [
         ("open(", EscalationCapability::RequiresFilesystem, "Direct host filesystem I/O requires a Thanaton MicroVM"),
         ("readFile", EscalationCapability::RequiresFilesystem, "Filesystem read access requires a Thanaton MicroVM"),
         ("writeFile", EscalationCapability::RequiresFilesystem, "Filesystem write access requires a Thanaton MicroVM"),
@@ -132,17 +202,28 @@ pub fn check_prohibited_patterns(
         ("pip install", EscalationCapability::RequiresPackages, "Python package installation requires a Thanaton MicroVM"),
         ("yarn add", EscalationCapability::RequiresPackages, "Package installation requires a Thanaton MicroVM"),
         ("import socket", EscalationCapability::RequiresNetwork, "Raw network sockets require Thanaton MicroVM network virtualization"),
+        ("from socket import", EscalationCapability::RequiresNetwork, "Network socket modules require Thanaton MicroVM network virtualization"),
+        ("import urllib", EscalationCapability::RequiresNetwork, "Network HTTP libraries require Thanaton MicroVM network virtualization"),
         ("requests.", EscalationCapability::RequiresNetwork, "Outbound HTTP requests require Thanaton MicroVM network virtualization"),
         ("import os", EscalationCapability::RequiresProcessSpawn, "Direct OS syscalls are not available in the in-memory verifier"),
+        ("from os import", EscalationCapability::RequiresProcessSpawn, "Direct OS syscalls are not available in the in-memory verifier"),
         ("import sys", EscalationCapability::RequiresProcessSpawn, "Process control modules require a Thanaton MicroVM"),
+        ("from sys import", EscalationCapability::RequiresProcessSpawn, "Process control modules require a Thanaton MicroVM"),
         ("import subprocess", EscalationCapability::RequiresProcessSpawn, "Process spawning requires a Thanaton MicroVM"),
+        ("from subprocess import", EscalationCapability::RequiresProcessSpawn, "Process spawning requires a Thanaton MicroVM"),
+        ("import pty", EscalationCapability::RequiresProcessSpawn, "PTY allocation requires a Thanaton MicroVM"),
         ("fork(", EscalationCapability::RequiresProcessSpawn, "Forking OS processes is strictly forbidden in Tier 0"),
+        ("__import__", EscalationCapability::RequiresProcessSpawn, "Dynamic module imports require Thanaton MicroVMs"),
+        ("eval(", EscalationCapability::RequiresProcessSpawn, "Unconstrained eval requires Thanaton MicroVM execution"),
+        ("exec(", EscalationCapability::RequiresProcessSpawn, "Unconstrained exec requires Thanaton MicroVM execution"),
+        ("compile(", EscalationCapability::RequiresProcessSpawn, "Unconstrained bytecode compilation requires Thanaton MicroVMs"),
     ];
 
     let state = current_env.cloned().unwrap_or(json!({}));
+    let sanitized = strip_comments_and_strings(code);
 
     for (pat, cap, reason) in forbidden {
-        if code.contains(pat) {
+        if sanitized.contains(pat) {
             return Err(AletheiaError::RestrictedOperation {
                 capability: cap,
                 attempted: pat.to_string(),

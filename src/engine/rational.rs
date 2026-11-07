@@ -62,6 +62,14 @@ impl RationalNumber {
         self.inner.is_integer()
     }
 
+    pub fn to_i64(&self) -> Option<i64> {
+        if self.inner.is_integer() {
+            self.inner.numer().to_i64()
+        } else {
+            None
+        }
+    }
+
     /// Compute exact combination: n! / (k! * (n-k)!)
     pub fn comb(n: u64, k: u64) -> Self {
         if k > n {

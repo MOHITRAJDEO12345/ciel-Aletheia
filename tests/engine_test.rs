@@ -97,3 +97,53 @@ fn test_instant_micro_fuzzer() {
     assert_eq!(res.total_cases, 1000);
     assert!(res.duration_us < 2000, "Fuzzer took longer than 2ms: {}µs", res.duration_us);
 }
+
+#[test]
+fn test_compound_arithmetic_expressions() {
+    use aletheia::engine::session::Value;
+
+    let mut s = Session::new(100_000);
+    
+    // 1. Compound addition
+    let res = s.eval("1 + 2 + 3").expect("Failed to evaluate 1 + 2 + 3");
+    assert_eq!(res, Value::Integer(6));
+
+    // 2. Precedence (mul before sub)
+    let res = s.eval("10 * 5 - 2").expect("Failed to evaluate 10 * 5 - 2");
+    assert_eq!(res, Value::Integer(48));
+
+    // 3. Parentheses override
+    let res = s.eval("(2 + 3) * 4").expect("Failed to evaluate (2 + 3) * 4");
+    assert_eq!(res, Value::Integer(20));
+
+    // 4. Variables and arithmetic
+    let _ = s.eval("x = 15");
+    let res = s.eval("x * 2 + 10").expect("Failed to evaluate x * 2 + 10");
+    assert_eq!(res, Value::Integer(40));
+
+    // 5. comb(n, k) inside expression
+    let res = s.eval("comb(5, 2) + 3").expect("Failed to evaluate comb(5, 2) + 3");
+    assert_eq!(res, Value::Integer(13));
+}
+
+#[test]
+fn test_billboard_comment_false_positives_and_import_variations() {
+    let mut s = Session::new(100_000);
+
+    // 1. Comments containing forbidden keywords must NOT trigger error
+    let res = s.eval("x = 42 # open('/etc/passwd')");
+    assert!(res.is_ok(), "Comment triggered false positive billboard error");
+
+    // 2. String literal containing forbidden pattern must NOT trigger error
+    let res = s.eval("y = 100 // import os");
+    println!("res 2: {:?}", res);
+    assert!(res.is_ok(), "C-style comment triggered false positive error");
+
+    // 3. from os import system MUST trigger error
+    let res = s.eval("from os import system");
+    assert!(res.is_err(), "from os import system evaded billboard");
+
+    // 4. __import__ MUST trigger error
+    let res = s.eval("__import__('os')");
+    assert!(res.is_err(), "__import__ evaded billboard");
+}

@@ -4,6 +4,37 @@ import math
 import time
 import random
 
+SAFE_BUILTINS = {
+    "abs": abs,
+    "min": min,
+    "max": max,
+    "sum": sum,
+    "len": len,
+    "range": range,
+    "enumerate": enumerate,
+    "int": int,
+    "float": float,
+    "str": str,
+    "bool": bool,
+    "list": list,
+    "dict": dict,
+    "set": set,
+    "tuple": tuple,
+    "zip": zip,
+    "sorted": sorted,
+    "reversed": reversed,
+    "round": round,
+    "pow": pow,
+    "divmod": divmod,
+    "any": any,
+    "all": all,
+    "filter": filter,
+    "map": map,
+    "math": math,
+    "comb": math.comb,
+    "__builtins__": {},
+}
+
 class FuzzResult:
     def __init__(self, total_cases: int, passed: bool, duration_us: int):
         self.total_cases = total_cases
@@ -99,7 +130,9 @@ class Verifier:
             if m:
                 n, k = int(m.group(1)), int(m.group(2))
                 return math.comb(n, k)
-        return eval(code, {"math": math, "__builtins__": {}}, dict(self.env))
+        eval_ctx = dict(SAFE_BUILTINS)
+        eval_ctx.update(self.env)
+        return eval(code, eval_ctx)
 
     def eval_with_telemetry(self, code: str) -> ExecutionTelemetry:
         """Return deterministic execution telemetry for RL reward functions (GRPO/PPO)."""

@@ -284,6 +284,12 @@ impl<'a> SymbolicParser<'a> {
             Some(Token::Var(name)) => {
                 let var_name = *name;
                 self.advance();
+                if let Some(Token::LParen) = self.peek() {
+                    return Err(format!(
+                        "Unsupported non-polynomial function '{}()': Symbolic canonicalizer operates on polynomial and rational algebraic expressions",
+                        var_name
+                    ));
+                }
                 Ok(Polynomial::from_var(var_name))
             }
             Some(Token::Minus) => {
@@ -309,6 +315,9 @@ impl<'a> SymbolicParser<'a> {
 /// Public API: Check if two mathematical expressions are symbolic equivalents
 /// E.g., "(x + 1)^2" and "x^2 + 2*x + 1" -> true
 pub fn check_mathematical_equivalence(expr_a: &str, expr_b: &str) -> Result<bool, String> {
+    if expr_a.trim() == expr_b.trim() {
+        return Ok(true);
+    }
     let p_a = SymbolicParser::parse(expr_a)?;
     let p_b = SymbolicParser::parse(expr_b)?;
     Ok(p_a.is_equivalent(&p_b))
@@ -346,5 +355,15 @@ mod tests {
     fn test_multivariable_equivalence() {
         // (x + y)^2 == x^2 + 2*x*y + y^2
         assert!(check_mathematical_equivalence("(x + y)^2", "x^2 + 2*x*y + y^2").unwrap());
+    }
+
+    #[test]
+    fn test_non_polynomial_function_handling() {
+        // Identical non-polynomial expressions must return true
+        assert!(check_mathematical_equivalence("sin(x)", "sin(x)").unwrap());
+
+        // Non-polynomial function call must return graceful error
+        let err = check_mathematical_equivalence("sin(x)", "cos(x)").unwrap_err();
+        assert!(err.contains("Unsupported non-polynomial function 'sin()'"));
     }
 }

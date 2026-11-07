@@ -431,9 +431,73 @@ curl -X POST https://control.theeducode.com/api/v1/speculate \
 ---
 
 #### Step 4: Serverless PostgreSQL & Zero-Copy Branching (Mnemon-DB)
-Connect directly via standard PostgreSQL wire protocol or management HTTP endpoints:
-- **Postgres Wire Protocol:** `postgres.theeducode.com:5432` (or `3.6.127.83:5432`)
-- **HTTP Studio & Branching API:** `https://db.theeducode.com` (or `http://3.6.127.83:9090`)
+Every provisioned unified key (`esk_live_...`) is cryptographically mapped to an isolated tenant namespace with automatic cgroup resource limits and instant branch-fork capabilities.
+
+**1. Inspect Tenant Identity & Quotas (`whoami`):**
+```bash
+curl -H "X-API-Key: <your_provisioned_api_key>" https://db.theeducode.com/v1/auth/whoami
+```
+*Response (`200 OK`):*
+```json
+{
+  "status": "authenticated",
+  "account_id": "41714f22-cd52-4abf-bcf7-8878ea05db4e",
+  "email": "Autonomous Agent",
+  "tier": "free_hacker",
+  "databases": [],
+  "tier_details": {
+    "max_databases": 1,
+    "max_memory_mb": 256,
+    "vcpus": 1,
+    "disk_quota_mb": 500,
+    "idle_timeout_sec": 180,
+    "max_branches": 1
+  }
+}
+```
+
+**2. Provision an On-Demand Isolated Database:**
+```python
+import urllib.request, json
+
+payload = {
+    "tenant_id": "agent_prod_db",
+    "template": "postgres-default"
+}
+
+req = urllib.request.Request(
+    "https://db.theeducode.com/v1/tenants/provision",
+    data=json.dumps(payload).encode(),
+    headers={
+        "Content-Type": "application/json",
+        "X-API-Key": "<your_provisioned_api_key>"
+    },
+    method="POST"
+)
+
+with urllib.request.urlopen(req) as resp:
+    result = json.loads(resp.read().decode())
+    print("Provisioned DB:", result)
+```
+*Response (`201 Created`):*
+```json
+{
+  "tenant_id": "agent_prod_db",
+  "state": "RUNNING",
+  "tier": "free_hacker",
+  "max_memory_mb": 256,
+  "port": 16003,
+  "socket_path": "/tmp/.s.PGSQL.16003",
+  "cgroup_path": "/sys/fs/cgroup/mnemon/agent_prod_db"
+}
+```
+
+**3. Direct PostgreSQL Wire Protocol Connection:**
+Connect using standard PostgreSQL client tools (`psql`, `psycopg2`, `pgx`, `TypeORM`, or raw wire sockets):
+```bash
+psql "host=postgres.theeducode.com port=5432 user=postgres dbname=agent_prod_db sslmode=disable"
+```
+*(Direct IP: `3.6.127.83:5432`)*
 
 ---
 
