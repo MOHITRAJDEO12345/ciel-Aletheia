@@ -112,13 +112,17 @@ fn handle_mcp_request(method: &str, params: Option<Value>, id: Value) -> JsonRpc
                     },
                     {
                         "name": "aletheia_fuzz",
-                        "description": "Instant micro-fuzzer evaluating 1,000 numerical and logical boundary test vectors in <300µs.",
+                        "description": "Instant micro-fuzzer evaluating boundary test vectors in <300µs against custom expressions or invariant predicates.",
                         "inputSchema": {
                             "type": "object",
                             "properties": {
                                 "trials": {
                                     "type": "integer",
                                     "description": "Number of boundary test vectors (default: 1000)"
+                                },
+                                "expression": {
+                                    "type": "string",
+                                    "description": "Optional invariant expression to test across random inputs (e.g. 'x + 0 == x' or 'x * 2 == x + x')"
                                 }
                             }
                         }
@@ -208,17 +212,23 @@ fn handle_mcp_request(method: &str, params: Option<Value>, id: Value) -> JsonRpc
                 }
                 "aletheia_fuzz" => {
                     let trials = args.get("trials").and_then(|v| v.as_u64()).unwrap_or(1000) as usize;
-                    let fres = Fuzzer::fuzz_invariant(|x| x.saturating_add(0) == x, trials);
+                    let expr = args.get("expression").and_then(|v| v.as_str());
+                    let fres = match expr {
+                        Some(e) => Fuzzer::fuzz_expression(e, trials),
+                        None => Fuzzer::fuzz_invariant(|x| x.saturating_add(0) == x, trials),
+                    };
                     let result = json!({
                         "content": [
                             {
                                 "type": "text",
-                                "text": format!("Micro-Fuzzer: {} cases verified in {}µs (Passed: {})", 
-                                    fres.total_cases, fres.duration_us, fres.passed)
+                                "text": format!("Micro-Fuzzer: {} cases verified in {}µs (Passed: {}){}", 
+                                    fres.total_cases, fres.duration_us, fres.passed,
+                                    fres.counter_example.as_ref().map(|c| format!(" [{}]", c)).unwrap_or_default())
                             }
                         ],
                         "passed": fres.passed,
-                        "duration_us": fres.duration_us
+                        "duration_us": fres.duration_us,
+                        "counter_example": fres.counter_example
                     });
                     JsonRpcResponse { jsonrpc: "2.0".to_string(), id, result: Some(result), error: None }
                 }

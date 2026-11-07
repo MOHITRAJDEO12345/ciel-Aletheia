@@ -167,7 +167,9 @@ impl VirtualMachine {
                                 return Err(format!("comb(n, k) operand size exceeded safety limit (k={}, max=10000)", effective_k));
                             }
                             if effective_k > 0 {
-                                fuel.consume(effective_k).map_err(|_| "Fuel exhausted during comb calculation")?;
+                                let log2_n = (64 - nv_u.leading_zeros()).max(1) as u64;
+                                let required_fuel = effective_k.saturating_mul(log2_n);
+                                fuel.consume(required_fuel).map_err(|_| "Fuel exhausted during comb calculation")?;
                             }
                             self.stack.push(StackVal::Rational(RationalNumber::comb(nv_u, kv_u)));
                         }

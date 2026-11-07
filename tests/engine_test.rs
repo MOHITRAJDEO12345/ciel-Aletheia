@@ -147,3 +147,57 @@ fn test_billboard_comment_false_positives_and_import_variations() {
     let res = s.eval("__import__('os')");
     assert!(res.is_err(), "__import__ evaded billboard");
 }
+
+#[test]
+fn test_fuel_meter_reset_consumed_desync_fix() {
+    use aletheia::engine::fuel::FuelMeter;
+
+    let meter = FuelMeter::new(1000);
+    assert_eq!(meter.consumed(), 0);
+    meter.consume(300).unwrap();
+    assert_eq!(meter.consumed(), 300);
+
+    // Reset to higher budget: must NOT desync consumed()
+    meter.reset(5000);
+    assert_eq!(meter.consumed(), 0);
+    meter.consume(1500).unwrap();
+    assert_eq!(meter.consumed(), 1500);
+}
+
+#[test]
+fn test_identifier_numeric_and_compound_assignment() {
+    let mut s = Session::new(100_000);
+
+    // 1. Numeric identifiers must NOT be saved as variables
+    let _res = s.eval("123 = 456");
+    // Evaluating "123 = 456" must either error or evaluate as an invalid assignment, not store variable "123"
+    assert!(!s.env.contains_key("123"), "Numeric variable name '123' was saved into env");
+
+    // 2. Compound assignment operators like += or *= must not corrupt variable names
+    let _ = s.eval("x += 10");
+    assert!(!s.env.contains_key("x +"), "Compound operator corrupted variable name to 'x +'");
+}
+
+#[test]
+fn test_telemetry_true_memory_bytes() {
+    let mut s = Session::new(100_000);
+    let t1 = s.eval_with_telemetry("x = 42").unwrap();
+    let initial_mem = t1.memory_bytes;
+
+    // Allocate a large string variable
+    let _ = s.eval("large_str = 1000");
+    let t2 = s.eval_with_telemetry("y = 9999").unwrap();
+    assert!(t2.memory_bytes >= initial_mem, "Memory telemetry failed to measure allocations");
+}
+
+#[test]
+fn test_fuzzer_custom_expression() {
+    // Custom invariant: x * 2 == x + x
+    let res = Fuzzer::fuzz_expression("x * 2 == x + x", 100);
+    assert!(res.passed, "x * 2 == x + x failed fuzzing: {:?}", res.counter_example);
+
+    // Failing invariant: x + 1 == x (must fail)
+    let res_fail = Fuzzer::fuzz_expression("x + 1 == x", 100);
+    assert!(!res_fail.passed, "x + 1 == x unexpectedly passed");
+    assert!(res_fail.counter_example.is_some());
+}

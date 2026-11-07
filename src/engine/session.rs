@@ -129,7 +129,17 @@ impl Session {
         let res = self.eval(code_text)?;
         let latency_us = t0.elapsed().as_micros() as u64;
         let fuel_consumed = initial_fuel - self.fuel;
-        let memory_bytes = std::mem::size_of_val(self) + (self.env.len() * 64);
+        
+        let env_heap_bytes: usize = self.env.iter().map(|(k, v)| {
+            let k_bytes = std::mem::size_of::<String>() + k.capacity();
+            let v_bytes = match v {
+                StackVal::Str(s) => std::mem::size_of::<String>() + s.capacity(),
+                StackVal::Rational(r) => std::mem::size_of_val(r) + 64,
+                _ => std::mem::size_of_val(v),
+            };
+            k_bytes + v_bytes
+        }).sum();
+        let memory_bytes: usize = std::mem::size_of_val(self) + env_heap_bytes;
 
         Ok(ExecutionTelemetry {
             result: format!("{:?}", res),
@@ -144,12 +154,16 @@ impl Session {
 fn parse_assignment(code: &str) -> Option<(&str, &str)> {
     let trimmed = code.trim();
     if let Some(idx) = trimmed.find('=') {
-        // Exclude ==, <=, >=, !=
-        if idx > 0 && !['=', '<', '>', '!'].contains(&(trimmed.as_bytes()[idx - 1] as char)) {
+        // Exclude compound assignments (+=, -=, *=, /=, %=, &=, |=, ^=) and comparisons (==, <=, >=, !=)
+        let excluded_preceding = ['=', '<', '>', '!', '+', '-', '*', '/', '%', '&', '|', '^', ':', '~'];
+        if idx > 0 && !excluded_preceding.contains(&(trimmed.as_bytes()[idx - 1] as char)) {
             if idx + 1 < trimmed.len() && trimmed.as_bytes()[idx + 1] != b'=' {
                 let var = trimmed[..idx].trim();
                 let expr = trimmed[idx + 1..].trim();
-                if var.chars().all(|c| c.is_alphanumeric() || c == '_') {
+                // Enforce valid identifier: starts with alphabetic or underscore, followed by alphanumeric or underscore
+                if var.starts_with(|c: char| c.is_alphabetic() || c == '_')
+                    && var.chars().all(|c| c.is_alphanumeric() || c == '_')
+                {
                     return Some((var, expr));
                 }
             }
@@ -253,6 +267,24 @@ fn tokenize_expression(expr: &str) -> Option<Vec<Token>> {
             continue;
         }
 
+        if b == b'=' && i + 1 < n && bytes[i + 1] == b'=' {
+            tokens.push(Token::Op('='));
+            i += 2;
+            continue;
+        }
+
+        if b == b'<' {
+            tokens.push(Token::Op('<'));
+            i += 1;
+            continue;
+        }
+
+        if b == b'>' {
+            tokens.push(Token::Op('>'));
+            i += 1;
+            continue;
+        }
+
         if b == b'-' {
             let is_unary = match tokens.last() {
                 None | Some(Token::Op(_)) | Some(Token::LParen) => true,
@@ -341,8 +373,9 @@ fn parse_shunting_yard(tokens: &[Token]) -> Option<Vec<Op>> {
 
     let precedence = |op: char| -> i32 {
         match op {
-            '+' | '-' => 1,
-            '*' | '/' => 2,
+            '=' | '<' | '>' => 1,
+            '+' | '-' => 2,
+            '*' | '/' => 3,
             _ => 0,
         }
     };
@@ -369,6 +402,9 @@ fn parse_shunting_yard(tokens: &[Token]) -> Option<Vec<Op>> {
                             '-' => output.push(Op::Sub),
                             '*' => output.push(Op::Mul),
                             '/' => output.push(Op::Div),
+                            '=' => output.push(Op::Eq),
+                            '<' => output.push(Op::Lt),
+                            '>' => output.push(Op::Gt),
                             _ => return None,
                         }
                     } else {
@@ -390,6 +426,9 @@ fn parse_shunting_yard(tokens: &[Token]) -> Option<Vec<Op>> {
                         '-' => output.push(Op::Sub),
                         '*' => output.push(Op::Mul),
                         '/' => output.push(Op::Div),
+                        '=' => output.push(Op::Eq),
+                        '<' => output.push(Op::Lt),
+                        '>' => output.push(Op::Gt),
                         _ => return None,
                     }
                 }
@@ -409,6 +448,9 @@ fn parse_shunting_yard(tokens: &[Token]) -> Option<Vec<Op>> {
             '-' => output.push(Op::Sub),
             '*' => output.push(Op::Mul),
             '/' => output.push(Op::Div),
+            '=' => output.push(Op::Eq),
+            '<' => output.push(Op::Lt),
+            '>' => output.push(Op::Gt),
             _ => return None,
         }
     }

@@ -5,14 +5,14 @@ use std::sync::atomic::{AtomicU64, Ordering};
 #[derive(Debug)]
 pub struct FuelMeter {
     remaining: AtomicU64,
-    initial_budget: u64,
+    initial_budget: AtomicU64,
 }
 
 impl FuelMeter {
     pub fn new(budget: u64) -> Self {
         Self {
             remaining: AtomicU64::new(budget),
-            initial_budget: budget,
+            initial_budget: AtomicU64::new(budget),
         }
     }
 
@@ -38,7 +38,7 @@ impl FuelMeter {
     }
 
     pub fn consumed(&self) -> u64 {
-        self.initial_budget.saturating_sub(self.remaining.load(Ordering::Relaxed))
+        self.initial_budget.load(Ordering::Relaxed).saturating_sub(self.remaining.load(Ordering::Relaxed))
     }
 
     pub fn remaining(&self) -> u64 {
@@ -47,5 +47,6 @@ impl FuelMeter {
 
     pub fn reset(&self, new_budget: u64) {
         self.remaining.store(new_budget, Ordering::SeqCst);
+        self.initial_budget.store(new_budget, Ordering::SeqCst);
     }
 }

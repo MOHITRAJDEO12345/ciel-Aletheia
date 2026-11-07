@@ -26,7 +26,13 @@ fn main() {
             }
         }
         "eval" => {
-            let expr = args.get(2).map(|s| s.as_str()).unwrap_or("comb(100, 50)");
+            let expr = match args.get(2) {
+                Some(e) => e.as_str(),
+                None => {
+                    eprintln!("[-] Error: Expression required. Usage: aletheia eval <expression> [fuel]");
+                    std::process::exit(1);
+                }
+            };
             let fuel = args.get(3).and_then(|s| s.parse().ok()).unwrap_or(500_000);
             let mut s = Session::new(fuel);
             let t0 = Instant::now();
@@ -42,8 +48,20 @@ fn main() {
             }
         }
         "equiv" => {
-            let expr_a = args.get(2).map(|s| s.as_str()).unwrap_or("(x + 1)^2");
-            let expr_b = args.get(3).map(|s| s.as_str()).unwrap_or("x^2 + 2*x + 1");
+            let expr_a = match args.get(2) {
+                Some(e) => e.as_str(),
+                None => {
+                    eprintln!("[-] Error: Two expressions required. Usage: aletheia equiv <expr_a> <expr_b>");
+                    std::process::exit(1);
+                }
+            };
+            let expr_b = match args.get(3) {
+                Some(e) => e.as_str(),
+                None => {
+                    eprintln!("[-] Error: Two expressions required. Usage: aletheia equiv <expr_a> <expr_b>");
+                    std::process::exit(1);
+                }
+            };
             let t0 = Instant::now();
             match check_mathematical_equivalence(expr_a, expr_b) {
                 Ok(is_eq) => {
@@ -57,7 +75,13 @@ fn main() {
             }
         }
         "telemetry" => {
-            let expr = args.get(2).map(|s| s.as_str()).unwrap_or("x = 100");
+            let expr = match args.get(2) {
+                Some(e) => e.as_str(),
+                None => {
+                    eprintln!("[-] Error: Expression required. Usage: aletheia telemetry <expression>");
+                    std::process::exit(1);
+                }
+            };
             let mut s = Session::new(500_000);
             match s.eval_with_telemetry(expr) {
                 Ok(t) => {
@@ -75,9 +99,22 @@ fn main() {
         }
         "fuzz" => {
             let count = args.get(2).and_then(|s| s.parse().ok()).unwrap_or(1000);
-            println!("[*] Running instant micro-fuzzing with {} test vectors...", count);
-            let res = Fuzzer::fuzz_invariant(|x| x.saturating_add(0) == x, count);
-            println!("[+] Invariant Verified: {} trials in {} µs (Passed: {})", res.total_cases, res.duration_us, res.passed);
+            let expr_opt = args.get(3).map(|s| s.as_str());
+            match expr_opt {
+                Some(expr) => {
+                    println!("[*] Running micro-fuzzing with {} test vectors for invariant '{}'...", count, expr);
+                    let res = Fuzzer::fuzz_expression(expr, count);
+                    println!("[+] Invariant Verified: {} trials in {} µs (Passed: {})", res.total_cases, res.duration_us, res.passed);
+                    if let Some(counter) = res.counter_example {
+                        eprintln!("[-] {}", counter);
+                    }
+                }
+                None => {
+                    println!("[*] Running micro-fuzzing with {} test vectors for identity invariant 'x + 0 == x'...", count);
+                    let res = Fuzzer::fuzz_invariant(|x| x.saturating_add(0) == x, count);
+                    println!("[+] Invariant Verified: {} trials in {} µs (Passed: {})", res.total_cases, res.duration_us, res.passed);
+                }
+            }
         }
         "benchmark" => {
             println!("==================================================================");
