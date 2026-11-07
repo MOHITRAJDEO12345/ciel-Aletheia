@@ -201,3 +201,36 @@ fn test_fuzzer_custom_expression() {
     assert!(!res_fail.passed, "x + 1 == x unexpectedly passed");
     assert!(res_fail.counter_example.is_some());
 }
+
+#[test]
+fn test_relational_comparison_operators_lte_gte_neq() {
+    use aletheia::engine::session::Value;
+    let mut s = Session::new(100_000);
+
+    // 1. Less than or equal
+    let res1 = s.eval("1 <= 2").expect("1 <= 2 failed");
+    assert_eq!(res1, Value::Boolean(true), "1 <= 2 should be true");
+
+    let res2 = s.eval("2 <= 2").expect("2 <= 2 failed");
+    assert_eq!(res2, Value::Boolean(true), "2 <= 2 should be true");
+
+    let res3 = s.eval("3 <= 2").expect("3 <= 2 failed");
+    assert_eq!(res3, Value::Boolean(false), "3 <= 2 should be false");
+
+    // 2. Greater than or equal
+    let res4 = s.eval("5 >= 2").expect("5 >= 2 failed");
+    assert_eq!(res4, Value::Boolean(true), "5 >= 2 should be true");
+
+    let res5 = s.eval("2 >= 2").expect("2 >= 2 failed");
+    assert_eq!(res5, Value::Boolean(true), "2 >= 2 should be true");
+
+    let res6 = s.eval("1 >= 2").expect("1 >= 2 failed");
+    assert_eq!(res6, Value::Boolean(false), "1 >= 2 should be false");
+
+    // 3. Not equal
+    let res7 = s.eval("4 != 5").expect("4 != 5 failed");
+    assert_eq!(res7, Value::Boolean(true), "4 != 5 should be true");
+
+    let res8 = s.eval("4 != 4").expect("4 != 4 failed");
+    assert_eq!(res8, Value::Boolean(false), "4 != 4 should be false");
+}

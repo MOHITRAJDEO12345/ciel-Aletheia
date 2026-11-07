@@ -224,7 +224,7 @@ enum Token {
     Num(i64),
     Var(String),
     Comb(i64, i64),
-    Op(char),
+    Op(String),
     LParen,
     RParen,
 }
@@ -262,26 +262,42 @@ fn tokenize_expression(expr: &str) -> Option<Vec<Token>> {
         }
 
         if b == b'+' || b == b'*' || b == b'/' {
-            tokens.push(Token::Op(b as char));
+            tokens.push(Token::Op((b as char).to_string()));
             i += 1;
             continue;
         }
 
         if b == b'=' && i + 1 < n && bytes[i + 1] == b'=' {
-            tokens.push(Token::Op('='));
+            tokens.push(Token::Op("==".to_string()));
+            i += 2;
+            continue;
+        }
+
+        if b == b'!' && i + 1 < n && bytes[i + 1] == b'=' {
+            tokens.push(Token::Op("!=".to_string()));
             i += 2;
             continue;
         }
 
         if b == b'<' {
-            tokens.push(Token::Op('<'));
-            i += 1;
+            if i + 1 < n && bytes[i + 1] == b'=' {
+                tokens.push(Token::Op("<=".to_string()));
+                i += 2;
+            } else {
+                tokens.push(Token::Op("<".to_string()));
+                i += 1;
+            }
             continue;
         }
 
         if b == b'>' {
-            tokens.push(Token::Op('>'));
-            i += 1;
+            if i + 1 < n && bytes[i + 1] == b'=' {
+                tokens.push(Token::Op(">=".to_string()));
+                i += 2;
+            } else {
+                tokens.push(Token::Op(">".to_string()));
+                i += 1;
+            }
             continue;
         }
 
@@ -301,7 +317,7 @@ fn tokenize_expression(expr: &str) -> Option<Vec<Token>> {
                 tokens.push(Token::Num(val));
                 continue;
             } else {
-                tokens.push(Token::Op('-'));
+                tokens.push(Token::Op("-".to_string()));
                 i += 1;
                 continue;
             }
@@ -369,13 +385,13 @@ fn tokenize_expression(expr: &str) -> Option<Vec<Token>> {
 
 fn parse_shunting_yard(tokens: &[Token]) -> Option<Vec<Op>> {
     let mut output: Vec<Op> = Vec::new();
-    let mut op_stack: Vec<char> = Vec::new();
+    let mut op_stack: Vec<String> = Vec::new();
 
-    let precedence = |op: char| -> i32 {
+    let precedence = |op: &str| -> i32 {
         match op {
-            '=' | '<' | '>' => 1,
-            '+' | '-' => 2,
-            '*' | '/' => 3,
+            "==" | "!=" | "<" | ">" | "<=" | ">=" => 1,
+            "+" | "-" => 2,
+            "*" | "/" => 3,
             _ => 0,
         }
     };
@@ -390,45 +406,51 @@ fn parse_shunting_yard(tokens: &[Token]) -> Option<Vec<Op>> {
                 output.push(Op::Comb);
             }
             Token::Op(op) => {
-                let p = precedence(*op);
-                while let Some(&top) = op_stack.last() {
-                    if top == '(' {
+                let p = precedence(op);
+                while let Some(top) = op_stack.last() {
+                    if top == "(" {
                         break;
                     }
                     if precedence(top) >= p {
-                        op_stack.pop();
-                        match top {
-                            '+' => output.push(Op::Add),
-                            '-' => output.push(Op::Sub),
-                            '*' => output.push(Op::Mul),
-                            '/' => output.push(Op::Div),
-                            '=' => output.push(Op::Eq),
-                            '<' => output.push(Op::Lt),
-                            '>' => output.push(Op::Gt),
+                        let top_op = op_stack.pop().unwrap();
+                        match top_op.as_str() {
+                            "+" => output.push(Op::Add),
+                            "-" => output.push(Op::Sub),
+                            "*" => output.push(Op::Mul),
+                            "/" => output.push(Op::Div),
+                            "==" => output.push(Op::Eq),
+                            "!=" => output.push(Op::Neq),
+                            "<" => output.push(Op::Lt),
+                            ">" => output.push(Op::Gt),
+                            "<=" => output.push(Op::Lte),
+                            ">=" => output.push(Op::Gte),
                             _ => return None,
                         }
                     } else {
                         break;
                     }
                 }
-                op_stack.push(*op);
+                op_stack.push(op.clone());
             }
-            Token::LParen => op_stack.push('('),
+            Token::LParen => op_stack.push("(".to_string()),
             Token::RParen => {
                 let mut matched = false;
                 while let Some(top) = op_stack.pop() {
-                    if top == '(' {
+                    if top == "(" {
                         matched = true;
                         break;
                     }
-                    match top {
-                        '+' => output.push(Op::Add),
-                        '-' => output.push(Op::Sub),
-                        '*' => output.push(Op::Mul),
-                        '/' => output.push(Op::Div),
-                        '=' => output.push(Op::Eq),
-                        '<' => output.push(Op::Lt),
-                        '>' => output.push(Op::Gt),
+                    match top.as_str() {
+                        "+" => output.push(Op::Add),
+                        "-" => output.push(Op::Sub),
+                        "*" => output.push(Op::Mul),
+                        "/" => output.push(Op::Div),
+                        "==" => output.push(Op::Eq),
+                        "!=" => output.push(Op::Neq),
+                        "<" => output.push(Op::Lt),
+                        ">" => output.push(Op::Gt),
+                        "<=" => output.push(Op::Lte),
+                        ">=" => output.push(Op::Gte),
                         _ => return None,
                     }
                 }
@@ -440,17 +462,20 @@ fn parse_shunting_yard(tokens: &[Token]) -> Option<Vec<Op>> {
     }
 
     while let Some(top) = op_stack.pop() {
-        if top == '(' || top == ')' {
+        if top == "(" || top == ")" {
             return None;
         }
-        match top {
-            '+' => output.push(Op::Add),
-            '-' => output.push(Op::Sub),
-            '*' => output.push(Op::Mul),
-            '/' => output.push(Op::Div),
-            '=' => output.push(Op::Eq),
-            '<' => output.push(Op::Lt),
-            '>' => output.push(Op::Gt),
+        match top.as_str() {
+            "+" => output.push(Op::Add),
+            "-" => output.push(Op::Sub),
+            "*" => output.push(Op::Mul),
+            "/" => output.push(Op::Div),
+            "==" => output.push(Op::Eq),
+            "!=" => output.push(Op::Neq),
+            "<" => output.push(Op::Lt),
+            ">" => output.push(Op::Gt),
+            "<=" => output.push(Op::Lte),
+            ">=" => output.push(Op::Gte),
             _ => return None,
         }
     }

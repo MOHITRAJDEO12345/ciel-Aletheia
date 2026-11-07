@@ -15,8 +15,11 @@ pub enum Op {
     Mul,
     Div,
     Eq,
+    Neq,
     Lt,
     Gt,
+    Lte,
+    Gte,
     Jump(usize),
     JumpIfFalse(usize),
     Comb, // Combinatorics primitive: comb(n, k)
@@ -137,6 +140,12 @@ impl VirtualMachine {
                     self.stack.push(StackVal::Bool(a == b));
                     self.pc += 1;
                 }
+                Op::Neq => {
+                    let b = self.stack.pop().ok_or("Stack underflow")?;
+                    let a = self.stack.pop().ok_or("Stack underflow")?;
+                    self.stack.push(StackVal::Bool(a != b));
+                    self.pc += 1;
+                }
                 Op::Lt => {
                     let b = self.stack.pop().ok_or("Stack underflow")?;
                     let a = self.stack.pop().ok_or("Stack underflow")?;
@@ -151,6 +160,24 @@ impl VirtualMachine {
                     let a = self.stack.pop().ok_or("Stack underflow")?;
                     match (a.as_rational(), b.as_rational()) {
                         (Some(ra), Some(rb)) => self.stack.push(StackVal::Bool(ra > rb)),
+                        _ => return Err("Invalid operand types for comparison".to_string()),
+                    }
+                    self.pc += 1;
+                }
+                Op::Lte => {
+                    let b = self.stack.pop().ok_or("Stack underflow")?;
+                    let a = self.stack.pop().ok_or("Stack underflow")?;
+                    match (a.as_rational(), b.as_rational()) {
+                        (Some(ra), Some(rb)) => self.stack.push(StackVal::Bool(ra <= rb)),
+                        _ => return Err("Invalid operand types for comparison".to_string()),
+                    }
+                    self.pc += 1;
+                }
+                Op::Gte => {
+                    let b = self.stack.pop().ok_or("Stack underflow")?;
+                    let a = self.stack.pop().ok_or("Stack underflow")?;
+                    match (a.as_rational(), b.as_rational()) {
+                        (Some(ra), Some(rb)) => self.stack.push(StackVal::Bool(ra >= rb)),
                         _ => return Err("Invalid operand types for comparison".to_string()),
                     }
                     self.pc += 1;
