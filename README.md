@@ -1,9 +1,29 @@
-# Aletheia: Ultra-Low-Latency In-Memory Verification Engine
-## Free Developer Wedge for AI Reasoning, RL Rollouts & Test-Time Compute
+# CIEL Aletheia: Ultra-Low-Latency In-Memory Verification Engine
+## Sub-Microsecond Execution Core for the CIEL Speculative Execution Fabric
 
-Aletheia is a standalone, fuel-metered in-memory bytecode and symbolic verification engine engineered for AI inference, LLM test-time compute, and reinforcement learning reward pipelines (PPO / GRPO / Best-of-N).
+**CIEL Aletheia** is a standalone, fuel-metered in-memory bytecode and symbolic verification engine engineered for AI inference, LLM test-time compute, reinforcement learning reward pipelines (PPO / GRPO / Best-of-N), and autonomous agent self-correction.
 
-Licensed under **Apache 2.0**. Sub-microsecond execution latency. Zero external dependencies.
+Licensed under **Apache 2.0**. Sub-microsecond execution latency (**1.09 µs / op**). Zero external dependencies. Zero-cost developer wedge for the **CIEL Sovereign Cloud** platform.
+
+---
+
+### Quickstart & Installation
+
+```bash
+# Rust CLI & Library
+cargo install --path .   # Provides standalone `aletheia` binary
+# Or add to Cargo.toml:
+# ciel-aletheia = "0.1.0"
+
+# Python SDK (Fast in-memory verifier + CIEL Cloud client)
+pip install ciel-sdk
+
+# TypeScript / Node.js
+npm install @ciel-dev/sdk
+
+# Run MCP Server for Claude Desktop / Cursor / Windsurf
+aletheia mcp
+```
 
 ---
 
@@ -76,16 +96,16 @@ Aletheia has been upgraded with critical architectural hardening features physic
 
 ---
 
-### Part 2: The Ananke Sovereign Cloud Suite: Dedicated Subsystem Benchmarks
+### Part 2: The CIEL Sovereign Cloud Suite: Dedicated Subsystem Benchmarks
 
-When an autonomous AI agent transitions from in-memory math and logic verification to full-system tasks (compilation, package installs, database branching, wire networking), Aletheia escalates seamlessly to the paid Ananke Sovereign Cloud engines. 
+When an autonomous AI agent transitions from in-memory math and logic verification to full-system tasks (compilation, package installs, database branching, wire networking), CIEL Aletheia escalates seamlessly to the CIEL Sovereign Cloud engines (powered by the Ananke core). 
 
 Each component is an enterprise-grade infrastructure platform with its own dedicated performance benchmarks:
 
 #### 1. Atomic 2PC Coordinator: Sub-Millisecond Cross-Domain Fusion
 *Two-Phase Commit fusing Hardware MicroVM, PostgreSQL Database, and Network Sockets.*
 
-| Architectural Benchmark | Metric / Workload | Ananke Score | Incumbent Baseline (Kubernetes + Dump) | Advantage |
+| Architectural Benchmark | Metric / Workload | CIEL Score | Incumbent Baseline (Kubernetes + Dump) | Advantage |
 | :--- | :--- | :--- | :--- | :--- |
 | **Warm 2PC Checkpoint** | MicroVM + DB + Socket Commit| **0.54 ms** | 8,500 ms (K8s snapshot + pg_dump) | **15,700x faster** |
 | **Cold 2PC Checkpoint** | Full Zero-State Commit | **0.60 ms** | 18,000 ms (Container + RDS clone) | **30,000x faster** |
@@ -378,7 +398,7 @@ Upgrade to Thanaton Cloud Sandboxes (sub-8ms Hardware MicroVMs):
 
 ### Part 5: The Escalation Continuum & Live Developer Quickstart
 
-When an autonomous agent transitions from in-memory math, logic, and AST checks to full hardware compilation, shell commands, or database transactions, it escalates to the live **Ananke Sovereign Cloud**.
+When an autonomous agent transitions from in-memory math, logic, and AST checks to full hardware compilation, shell commands, or database transactions, it escalates to the live **CIEL Sovereign Cloud**.
 
 #### Step 1: Self-Provisioning Free Tier API Key (Zero Credit Card Required)
 Any autonomous agent or developer can programmatically register via the public API:

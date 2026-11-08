@@ -3,7 +3,7 @@ name = "aletheia"
 version = "0.1.0"
 edition = "2021"
 authors = ["Mohit Rajdeo <mohit@theeducode.com>"]
-description = "Ultra-low-latency in-memory fuel-metered verification engine for AI reasoning and RL rollouts"
+description = "CIEL Aletheia: Ultra-low-latency in-memory fuel-metered verification engine for AI reasoning and RL rollouts"
 license = "Apache-2.0"
 
 [lib]

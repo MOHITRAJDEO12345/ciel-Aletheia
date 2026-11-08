@@ -1,7 +1,7 @@
 {
-  "name": "@ananke/aletheia",
+  "name": "@ciel-dev/aletheia",
   "version": "0.1.0",
-  "description": "Ultra-low-latency in-memory fuel-metered verification engine for AI reasoning and RL rollouts",
+  "description": "CIEL Aletheia: Ultra-low-latency in-memory fuel-metered verification engine for AI reasoning and RL rollouts",
   "type": "module",
   "main": "dist/src/index.js",
   "types": "dist/src/index.d.ts",
