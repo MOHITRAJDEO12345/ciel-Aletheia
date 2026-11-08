@@ -5,7 +5,7 @@ COPY src ./src
 RUN cargo build --release
 
 FROM debian:bookworm-slim
-LABEL org.opencontainers.image.source="https://github.com/MOHITRAJDEO12345/ananke-Aletheia"
+LABEL org.opencontainers.image.source="https://github.com/MOHITRAJDEO12345/ciel-Aletheia"
 LABEL org.opencontainers.image.description="Ultra-Low-Latency In-Memory Verification Engine for AI Reasoning"
 LABEL org.opencontainers.image.licenses="Apache-2.0"
 
