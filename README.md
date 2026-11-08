@@ -1,50 +1,102 @@
 # CIEL Aletheia: Ultra-Low-Latency In-Memory Verification Engine
-## Sub-Microsecond Execution Core for the CIEL Speculative Execution Fabric
+## Sub-Microsecond Execution Core & Invariant Verifier for AI Reasoning and Agent Rollouts
+
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![Language: Rust](https://img.shields.io/badge/Language-Rust_2021-orange.svg)](https://www.rust-lang.org/)
+[![Multi-Arch](https://img.shields.io/badge/Architecture-AMD64%20%7C%20ARM64%20(Graviton4)-green.svg)](https://github.com/MOHITRAJDEO12345/ciel-Aletheia)
+[![MCP Ready](https://img.shields.io/badge/MCP-2.0_Compliant-purple.svg)](https://modelcontextprotocol.io/)
+[![GitHub Release](https://img.shields.io/github/v/release/MOHITRAJDEO12345/ciel-Aletheia?color=blue)](https://github.com/MOHITRAJDEO12345/ciel-Aletheia/releases)
 
 **CIEL Aletheia** is a standalone, fuel-metered in-memory bytecode and symbolic verification engine engineered for AI inference, LLM test-time compute, reinforcement learning reward pipelines (PPO / GRPO / Best-of-N), and autonomous agent self-correction.
 
-Licensed under **Apache 2.0**. Sub-microsecond execution latency (**1.09 µs / op**). Zero external dependencies. Zero-cost developer wedge for the **CIEL Sovereign Cloud** platform.
+Licensed under **Apache 2.0**. Sub-microsecond execution latency (**1.09 µs / op**). Zero external dependencies. Zero network calls required for in-memory verification.
+
+---
+
+### Architectural Positioning: Tier 0 vs. Enterprise Cloud Escalation
+
+Aletheia establishes a clean architectural boundary between local in-memory verification and full-system sandboxing:
+
+* **Tier 0: Standalone In-Memory Verification (Free & Open-Source — This Engine):**  
+  Runs entirely in RAM within your application process. Zero disk writes, zero container startup latency, zero cloud accounts. Evaluates candidate logic, syntax, loop termination, and mathematical invariants in **1.09 microseconds**. Intercepts invalid agent proposals *before* any expensive system call or container is ever invoked.
+* **Tier 1 & Tier 2: The CIEL Sovereign Cloud (Optional Enterprise Cloud Escalation):**  
+  When an autonomous agent transitions from in-memory logic to real-world software tasks (e.g. running `pip install`, executing full test suites against PostgreSQL, or performing multi-file builds), Aletheia escalates to the **CIEL Speculative Execution Fabric**:
+  - **Thanaton**: Sub-8ms hardware microVMs (KVM / UFFD userfaultfd demand-paging).
+  - **Mnemon-DB**: 1.8ms zero-copy database branching on copy-on-write NVMe.
+  - **Eschaton**: Sub-10ms burst compiler sandboxes across 10 execution modes.
+  - **Acheron & Lethe**: Kernel-bypass eBPF socket roaming and WAL-to-Parquet telemetry streaming.
 
 ---
 
 ### Quickstart & Installation
 
+#### 1. Standalone Rust Binary & Library
 ```bash
-# Rust CLI & Library
-cargo install --path .   # Provides standalone `aletheia` binary
-# Or add to Cargo.toml:
-# ciel-aletheia = "0.1.0"
+# Build & install binary locally
+cargo install --path .
 
-# Python SDK (Fast in-memory verifier + CIEL Cloud client)
-pip install ciel-sdk
+# Or install directly from GitHub:
+cargo install --git https://github.com/MOHITRAJDEO12345/ciel-Aletheia.git
 
-# TypeScript / Node.js
-npm install @ciel-dev/sdk
+# Run standalone CLI
+aletheia --help
+```
 
-# Run MCP Server for Claude Desktop / Cursor / Windsurf
+#### 2. Model Context Protocol (MCP) Server for Claude Desktop & Cursor
+```bash
+# Run the stdio MCP server directly
 aletheia mcp
 ```
+To add to Claude Desktop (`claude_desktop_config.json`) or Cursor:
+```json
+{
+  "mcpServers": {
+    "aletheia": {
+      "command": "aletheia",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+#### 3. Multi-Architecture Docker Container (AMD64 & ARM64 Graviton4)
+```bash
+# Pull official multi-arch image from GitHub Container Registry
+docker pull ghcr.io/mohitrajdeo12345/ciel-aletheia:latest
+
+# Run interactive evaluation
+docker run --rm -it ghcr.io/mohitrajdeo12345/ciel-aletheia:latest eval "comb(10, 5)"
+```
+
+#### 4. Pre-Built Native Binaries
+Download pre-compiled binaries and language wheels directly from [GitHub Releases v0.1.0](https://github.com/MOHITRAJDEO12345/ciel-Aletheia/releases/tag/v0.1.0):
+- `aletheia.exe` / `aletheia` (Standalone native executable)
+- `aletheia.dll` (Dynamic C-ABI FFI library)
+- `ciel-1.0.0-py3-none-any.whl` (Python SDK)
+- `mohitrajdeo12345-ciel-aletheia-0.1.0.tgz` (npm package tarball)
 
 ---
 
 ### Part 1: Verified Performance Benchmarks
 
-| Component / Layer | Metric | Aletheia Score | Incumbent Baseline | Multiplier |
+The table below contrasts Aletheia's in-process verification physics against conventional container and process sandboxes. Every latency score is backed by deterministic, repeatable benchmarks:
+
+| Component / Layer | Metric | Aletheia Score | Incumbent Baseline | Architectural Mechanism |
 | :--- | :--- | :--- | :--- | :--- |
-| **In-Memory Bytecode** | Evaluation Latency | **1.09 µs / op** | 20 ms – 150 ms | **>18,000x faster** |
-| **Throughput Density** | Evaluations / Second | **911,208 ops / sec** | 6 – 50 ops / sec | **>18,000x higher density** |
-| **Symbolic Equivalence** | Normalization & Check | **< 10 µs** | 200 ms – 800 ms (SymPy/Z3) | **>20,000x faster** |
-| **Infinite Loop Interception**| Fuel Meter Trap | **< 5 µs** | 2,000,000 µs (timeout wait) | **400,000x faster** |
-| **Micro-Fuzzing (1,000 vectors)**| Boundary Verification | **262 µs** | 2,000 ms – 5,000 ms | **>7,500x faster** |
-| **Numerical Precision Drift** | Math Exactness | **0.00% drift** (BigRational) | Undefined (IEEE-754 drift) | **Mathematically exact** |
-| **Session Fork Latency** | Micro-CoW Branch | **< 100 ns** | 15 ms – 250 ms | **>150,000x faster** |
-| **Worker Memory Footprint** | Resident RAM | **~64 KB** per worker | 15 MB – 50 MB per container | **>230x memory savings** |
+| **In-Memory Bytecode** | Evaluation Latency | **1.09 µs / op** | 20 ms – 150 ms | In-process AST reduction with zero OS syscalls or container fork overhead. |
+| **Throughput Density** | Evaluations / Second | **911,208 ops / sec** | 10 – 50 ops / sec | Single-core CPU evaluation density without process context-switching. |
+| **Symbolic Equivalence** | Normalization & Check | **< 10 µs** | 200 ms – 800 ms (SymPy/Z3) | Specialized canonical polynomial expansion vs heavy CAS/SMT solver boot. |
+| **Infinite Loop Interception**| Unbounded Loop Trap | **< 5 µs** | 2,000 ms (Thread timeout wait) | AST instruction fuel counter aborts immediately; no 2-second wall-clock sleep. |
+| **Micro-Fuzzing (1,000 runs)**| Invariant Boundary Check | **262 µs total** | 2,000 ms – 5,000 ms | In-memory pseudo-random invariant vector synthesis without process spawning. |
+| **Numerical Precision** | Arithmetic Drift | **0.00% drift** (BigRational) | Undefined (IEEE-754 float drift) | Arbitrary-precision exact rational arithmetic for math verification. |
+| **Session Branching** | State Fork Latency | **< 100 ns** | 15 ms – 250 ms (OS fork) | Immutable environment pointer swaps and micro-CoW branch isolation. |
+| **Memory Footprint** | Resident RAM | **~64 KB** per worker | 15 MB – 50 MB per container | Zero runtime runtime runtime dependencies, no V8/JVM heap overhead. |
 
 ---
 
 ### Part 1B: Dual-Architecture AWS Cloud Production Receipts (ARM64 vs. AMD64)
 
-Physical hardware verification was executed across dual AWS EC2 Spot instances in `ap-south-1` (Mumbai):
+Physical hardware verification was executed across dual AWS EC2 instances in `ap-south-1` (Mumbai, Availability Zone `ap-south-1b`):
 * **AMD64 Instance:** `c8i.large` (Intel Xeon 6975P-C, 2 vCPUs @ 2.7 GHz, 480 MiB L3 cache, Linux 7.0.0-1014-aws x86_64)
 * **ARM64 Instance:** `c8g.large` (AWS Graviton4 Neoverse-V2, 2 vCPUs @ 2.8 GHz, 36 MiB L3 cache, Linux 7.0.0-1014-aws aarch64)
 
@@ -60,7 +112,7 @@ Physical hardware verification was executed across dual AWS EC2 Spot instances i
 | **AFL Bitmap Coverage** | 64KB Branch Bitmap Coverage | **19.49%** | **19.49%** | **100% Deterministic Parity** |
 | **Resident Memory Footprint**| Base In-Memory Worker Footprint| **64 KB** | **64 KB** | **Identical (>230x memory cut)** |
 
-#### Architectural Analysis: Why AMD64 and ARM64 Split Victories
+#### Why AMD64 and ARM64 Split Victories:
 1. **Intel Xeon 6 Single-Thread Lead in Evaluation Loops (+103%):**
    Intel Xeon 6 achieves 2.14M ops/sec (467 ns/op) compared to Graviton4's 1.05M ops/sec. Xeon 6 leverages higher single-core turbo frequencies and its massive 480 MiB L3 cache, which keeps tight bytecode loops entirely resident within zero-latency silicon cache lines.
 2. **Graviton4 Advantage in Symbolic AST Recursion (+27.3%):**
@@ -70,25 +122,25 @@ Physical hardware verification was executed across dual AWS EC2 Spot instances i
 
 ---
 
-### Part 1C: Engine Hardening & Production Feature Upgrades
+### Part 1C: Engine Hardening & Production Features
 
-Aletheia has been upgraded with critical architectural hardening features physically verified under `cargo test`:
+Aletheia has been engineered and hardened under strict test suites:
 
 1. **Custom Invariant Expression Fuzzing (`Fuzzer::fuzz_expression`):**
    - Automatically fuzzes arbitrary user-specified invariant expressions (e.g., `"x * 2 == x + x"`, `"x + 0 == x"`) across hundreds or thousands of pseudo-random test inputs.
    - If an invariant is violated (e.g., `"x + 1 == x"`), Aletheia immediately isolates and extracts the exact minimal failing counterexample with microsecond latency.
 2. **Atomic Thread-Safe FuelMeter (`initial_budget: AtomicU64`):**
-   - Eliminated the race condition and desynchronization bug during session resets. Resetting a session's fuel meter (`meter.reset(new_budget)`) atomically updates both remaining and initial fuel budgets, guaranteeing that `consumed()` remains bit-perfect and monotonically accurate across chained agent interactions.
+   - Resetting a session's fuel meter (`meter.reset(new_budget)`) atomically updates both remaining and initial fuel budgets, guaranteeing that `consumed()` remains bit-perfect and monotonically accurate across chained agent interactions.
 3. **Combinatorics CPU-Exhaustion Protection (`comb(n, k)`):**
    - Clamps the `k` operand size to a hard safety bound (`k <= 10000`).
-   - Computes required fuel dynamically as $O(k \cdot \log_2 n)$ using leading zero counts (`nv_u.leading_zeros()`), preventing CPU exhaustion attacks from malicious agents submitting multi-megabyte BigRational factorial queries.
+   - Computes required fuel dynamically as $O(k \cdot \log_2 n)$ using leading zero counts, preventing CPU exhaustion attacks from malicious agents submitting massive factorial queries.
 4. **Identifier & Assignment Grammar Hardening:**
    - Syntax validation strictly rejects numeric variable assignments (such as `"123 = 456"`), preventing numerical constants from polluting the session environment.
-   - Fixed compound assignment parsing (`+=`, `*=`) to eliminate key corruption where variables were erroneously saved with trailing operator symbols (e.g., `"x +"`).
+   - Compound assignment parsing (`+=`, `*=`) cleanly isolates variables without trailing operator corruption.
 5. **Dynamic Runtime Memory Telemetry (`memory_bytes`):**
-   - `eval_with_telemetry` now dynamically computes the true heap bytes consumed by the environment map, AST nodes, and stack values rather than relying on static estimates.
+   - `eval_with_telemetry` dynamically computes the true heap bytes consumed by the environment map, AST nodes, and stack values rather than relying on static estimates.
 6. **Native Model Context Protocol (MCP) Server:**
-   - Includes standard JSON-RPC 2.0 stdio server (`aletheia mcp`) exposing 4 first-class agent tools:
+   - Standard JSON-RPC 2.0 stdio server (`aletheia mcp`) exposing 4 first-class agent tools:
      - `aletheia_eval`: In-memory bytecode evaluation with fuel-metering.
      - `aletheia_equiv`: Formal polynomial and symbolic equivalence checker.
      - `aletheia_fuzz`: Custom invariant expression fuzzing with counterexample generation.
@@ -96,131 +148,33 @@ Aletheia has been upgraded with critical architectural hardening features physic
 
 ---
 
-### Part 2: The CIEL Sovereign Cloud Suite: Dedicated Subsystem Benchmarks
+### Part 2: The Speculative Execution Continuum (Tier 0 to Tier 4)
 
-When an autonomous AI agent transitions from in-memory math and logic verification to full-system tasks (compilation, package installs, database branching, wire networking), CIEL Aletheia escalates seamlessly to the CIEL Sovereign Cloud engines (powered by the Ananke core). 
-
-Each component is an enterprise-grade infrastructure platform with its own dedicated performance benchmarks:
-
-#### 1. Atomic 2PC Coordinator: Sub-Millisecond Cross-Domain Fusion
-*Two-Phase Commit fusing Hardware MicroVM, PostgreSQL Database, and Network Sockets.*
-
-| Architectural Benchmark | Metric / Workload | CIEL Score | Incumbent Baseline (Kubernetes + Dump) | Advantage |
-| :--- | :--- | :--- | :--- | :--- |
-| **Warm 2PC Checkpoint** | MicroVM + DB + Socket Commit| **0.54 ms** | 8,500 ms (K8s snapshot + pg_dump) | **15,700x faster** |
-| **Cold 2PC Checkpoint** | Full Zero-State Commit | **0.60 ms** | 18,000 ms (Container + RDS clone) | **30,000x faster** |
-| **Cross-Tenant Data Bleed** | Storage / Cache Isolation | **0 Bytes leaked** | Vulnerable to shared cache leakage | **100% Cryptographic isolation** |
-| **Subsystem Fusion Scale** | Fused Cloud Services | **8 Subsystems in 1** | 8 separate cloud bills & daemons | **Zero-Tax infrastructure** |
-
-#### 2. Eschaton: Stateless Burst Compute & Compiler Sandbox
-*Ultra-high-density evaluation sandbox running 10 execution modes across compiled and interpreted languages.*
-
-| Architectural Benchmark | Metric / Workload | Eschaton Score | Incumbent Baseline (Standard Sandbox) | Advantage |
-| :--- | :--- | :--- | :--- | :--- |
-| **Sandbox Dispatch Latency** | Linux Kernel Sandbox Spawn | **8.4 ms** | 450 ms (Container cold start) | **53.5x faster** |
-| **Peak Ingestion Throughput**| Evaluation Requests / Sec | **74,066 RPS** | 1,200 RPS (Standard Judge engines) | **61.7x higher scale** |
-| **Pre-Compiled Headers (PCH)**| C++ `bits/stdc++.h` Compile | **18 ms** | 850 ms (Raw compilation) | **47x faster compile** |
-| **Concurrent Queue Drain** | 5,000 Parallel Submissions | **1.40 s** total | 42.0 s (Docker container queue) | **30x faster drain** |
-| **Execution Modes Supported**| Native Isolation Profiles | **10 Modes** (DBMS, Valgrind, etc.) | 1 generic mode | **10x broader test matrix** |
-
-#### 3. Thanaton: Hardware MicroVM Virtualization Engine
-*Sub-millisecond hardware-isolated sandboxes for untrusted AI coding agents.*
-
-| Architectural Benchmark | Metric / Workload | Thanaton Score | Incumbent Baseline (Standard Hypervisors) | Advantage |
-| :--- | :--- | :--- | :--- | :--- |
-| **Warm Boot Latency** | Ready-for-Traffic Exec | **7.42 ms** | 1,800 ms – 3,500 ms (Cloud VMs) | **240x faster** |
-| **Demand-Paged UFFD Boot** | Zero-Download Cold Boot | **14.2 ms** | 8,500 ms (OCI image pull + run) | **600x faster** |
-| **Density per Host** | Concurrent Active VMs | **10,000 per node** | 150 – 250 per node (Docker/K8s) | **40x higher density** |
-| **Scale-to-Zero Hibernate** | RAM Snapshot to NVMe | **4.2 ms** | 4,200 ms (Container commit) | **1,000x faster** |
-| **Scale-to-Zero Instant Wake** | Memory Thaw from Disk | **5.8 ms** | 3,200 ms (Cold container restart) | **550x faster** |
-| **Scheduler P99 Jitter** | Core-Pinned CPU Steal | **< 0.08 ms** | 12 ms – 45 ms (CFS contention) | **Zero noisy-neighbor jitter** |
-
-#### 4. Mnemon-DB: Zero-Copy Serverless PostgreSQL
-*Instant database branching and high-throughput ACID storage for AI agents.*
-
-| Architectural Benchmark | Metric / Workload | Mnemon-DB Score | Incumbent Baseline (Vanilla Postgres/RDS) | Advantage |
-| :--- | :--- | :--- | :--- | :--- |
-| **Zero-Copy Branch Fork** | Reflink Database Clone | **1.8 ms** | 45,000 ms (`pg_dump` + `pg_restore`) | **25,000x faster** |
-| **Fast '24 NVMe Commit** | Page Commit Latency | **24.94 µs / page** | 1,200 µs (Standard EBS `fsync`) | **48x lower latency** |
-| **Write Throughput** | ACID TPS on NVMe | **40,081 TPS** | 1,500 – 3,000 TPS | **13x higher throughput** |
-| **Branch Storage Overhead** | Reflink Delta Footprint | **0 Bytes initial** | Full copy (10 GB – 100 GB) | **Zero-cost branching** |
-| **Scale-to-Zero CPU** | Idle Frozen Tenant | **0.00% CPU** | 15% – 25% background autovacuum | **100% idle bill elimination** |
-| **Resume Under Query** | Cold Query Latency | **4.1 ms** | 15,000 ms (Aurora serverless wake) | **3,600x faster** |
-
-#### 5. Acheron: Zero-Tax High-Speed Cloud Wire Mesh
-*Sub-microsecond networking, zero-copy kTLS, and zero-downtime socket handover.*
-
-| Architectural Benchmark | Metric / Workload | Acheron Score | Incumbent Baseline (Linux Netfilter/Envoy) | Advantage |
-| :--- | :--- | :--- | :--- | :--- |
-| **Inter-Sandbox Hop Latency** | AF_XDP Kernel Bypass | **0.753 µs / hop** | 24 µs – 65 µs (TCP/IP loopback) | **32x lower latency** |
-| **Cross-AZ Wire Reduction** | LZ4 Stream Compression | **97.4% reduction** | 0.0% (Uncompressed wire) | **97.4% AWS egress cost cut** |
-| **Shannon Entropy Bypass** | Encrypted Stream Detection| **< 12 ns check** | Wasted CPU compressing ciphertext | **Saves 95% compressor CPU** |
-| **Zero-Downtime Handover** | Live `fd` Transfer (`roam`) | **4.89 µs** | Connection reset (RST + reconnect) | **Zero dropped connections** |
-| **eBPF Preemptible Mesh** | Packet Drop Rate @ 1M pps | **0.00% drops** | 4.8% drops under NIC saturation | **Zero-loss wire fabric** |
-| **kTLS Zero-Copy Egress** | TLS Encryption Throughput| **0.82 GB / sec** | 0.18 GB / sec (User-space OpenSSL) | **4.5x higher throughput** |
-
-#### 6. Lethe: Zero-JVM CDC to Parquet Streaming Engine
-*Direct PostgreSQL WAL to Parquet analytical pipeline without Kafka, Debezium, or Java heaps.*
-
-| Architectural Benchmark | Metric / Workload | Lethe Score | Incumbent Baseline (Debezium + Kafka) | Advantage |
-| :--- | :--- | :--- | :--- | :--- |
-| **Ingestion Throughput** | CDC Mutations / Second | **948,805 mut / sec** | 28,500 mut / sec (JVM Debezium) | **33x higher ingestion rate** |
-| **RAM Footprint** | Resident Memory Overhead | **18.4 MB** | 1,850 MB (JVM Heap + ZooKeeper/Kafka) | **100x lower memory overhead** |
-| **SIMD Parquet Encoding** | LBA to Columnar Encode | **4.53 GB / sec** | 0.35 GB / sec (Standard JVM Parquet) | **13x faster encoding** |
-| **Analytical Query Latency** | DuckDB on xNVMe Direct | **3.14 ms** | 450 ms – 1,200 ms (Presto/Trino) | **140x faster queries** |
-| **Direct LBA Table Scan** | Rows Scanned / Second | **75.16M rows / sec** | 4.2M rows / sec (JDBC table fetch) | **18x higher scan speed** |
-| **Zero-Copy S3 Streaming** | Multipart Pipe Throughput| **379.6 MB / sec** | 42 MB / sec (Local disk buffer flush)| **9x faster cloud upload** |
-
-#### 7. Hyperion: Host OS eBPF Sched_ext & Memory Reclaim
-*Sub-core CPU pacing, anti-thrashing memory reclaim, and pre-OOM crash telemetry.*
-
-| Architectural Benchmark | Metric / Workload | Hyperion Score | Incumbent Baseline (Standard Linux Kernel) | Advantage |
-| :--- | :--- | :--- | :--- | :--- |
-| **Task Dispatch Latency** | eBPF SCX Ring Dispatch | **0.697 µs mean** | 8.4 µs – 18.2 µs (Standard CFS) | **12x lower dispatch latency** |
-| **Host Scheduler Capacity** | Tasks Dispatched / Sec | **939,367 tasks / s** | 110,000 tasks / s (CFS lock bottleneck)| **8.5x higher scheduling scale** |
-| **CPU Contention Clamping** | µSlice Stall Reduction | **99.81% reduction** | 42% CPU stolen under noisy-neighbor | **Zero CPU starvation** |
-| **Out-of-Band Memory Reclaim**| Zero-Thrash Page Sweep | **66.55 µs sweep** | 8,500 ms (Kernel page-fault thrash) | **127,000x faster reclaim** |
-| **Pre-OOM Flight Recorder** | Tombstone Autopsy Capture| **100% pre-crash** | Process killed silently (Exit code 137)| **Instant root-cause forensics** |
-
-#### 8. Kronos: Virtual Monotonic Determinism & Chaos Hypervisor
-*Time-travel debugging, 0ns clock drift, and bit-for-bit replayable chaos engineering.*
-
-| Architectural Benchmark | Metric / Workload | Kronos Score | Incumbent Baseline (Standard Cloud Hypervisors) | Advantage |
-| :--- | :--- | :--- | :--- | :--- |
-| **Virtual Clock Drift** | Skew across 100 Traps | **0.00 ns drift** | 1.8 ms – 15 ms clock skew | **100% Bit-for-bit determinism** |
-| **Chaos Seed Replay** | Network Gray-Failure Replay| **100% exact match** | Non-deterministic flaky test failures | **Guaranteed bug reproduction** |
-| **Multiverse Timeline Fork** | Parallel Timelines Created | **50 in 1.00 ms** | Not possible (Requires full VM clones)| **Instant state branching** |
-| **Discrete Time Step Rate** | Synthetic Ticks / Second | **10,000,000 ticks / s**| Limited to wall-clock time speed | **100x faster simulation** |
-
----
-
-### Part 3: The Unified Ecosystem: Speculative Execution Fabric for Autonomous AI
-
-Instead of operating as isolated utilities, all 8 engines fuse into a single continuum: **The World's First Speculative Execution Cloud for Autonomous AI Coding Agents**.
+When an autonomous AI agent needs to graduate beyond in-memory logic checks to full OS compilation, multi-file code execution, or database mutations, Aletheia escalates to the CIEL Sovereign Cloud engines:
 
 ```mermaid
 flowchart TD
     subgraph Agent ["Autonomous AI Agent (Claude / Cursor / SWE-bench)"]
-        PROMPT["Agent Generates 16 Candidate Solution Branches"]
+        PROMPT["Agent Generates Candidate Code Patches"]
     end
 
-    subgraph Tier0 ["Tier 0: In-Memory Verification (<1.09 µs)"]
-        ALETHEIA["Aletheia Verifier<br/>• AST Syntax Check<br/>• Fuel Meter Intercept<br/>• Formal Symbolic Equivalence"]
+    subgraph Tier0 ["Tier 0: Standalone In-Memory Verification (<1.09 µs)"]
+        ALETHEIA["Aletheia Verifier (Open Source)<br/>• AST Syntax Check<br/>• Fuel Meter Intercept (<5 µs)<br/>• Formal Symbolic Equivalence (<10 µs)"]
     end
 
     subgraph Tier1 ["Tier 1: Multiverse Speculation (7.42 ms)"]
-        MNEMON["Mnemon-DB<br/>16 Zero-Copy Branches (1.8 ms)"]
-        THANATON["Thanaton MicroVMs<br/>16 Hardware Sandboxes (7.42 ms)"]
-        KRONOS["Kronos Timekeeper<br/>16 Deterministic Timelines (0ns Skew)"]
+        MNEMON["Mnemon-DB<br/>Zero-Copy DB Branches (1.8 ms)"]
+        THANATON["Thanaton MicroVMs<br/>Hardware Sandboxes (7.42 ms)"]
+        KRONOS["Kronos Timekeeper<br/>Deterministic Timelines (0ns Skew)"]
     end
 
     subgraph Tier2 ["Tier 2: Host Physics & Scheduling (0.69 µs)"]
-        HYPERION["Hyperion Sched_ext<br/>• µSlice Sub-Core Pacing<br/>• Out-of-Band Memory Reclaim (66 µs)"]
+        HYPERION["Hyperion Sched_ext<br/>• Sub-Core CPU Pacing<br/>• Out-of-Band Memory Reclaim (66 µs)"]
     end
 
     subgraph Tier3 ["Tier 3: Telemetry & Winner Commit (0.54 ms)"]
-        LETHE["Lethe CDC Streamer<br/>948k mut/s to Parquet Analytical OLAP"]
-        COORD["Atomic 2PC Coordinator<br/>Commit Winner in 0.54 ms • Prune 15 Branches"]
+        LETHE["Lethe CDC Streamer<br/>Direct WAL to Parquet Analytical OLAP"]
+        COORD["Atomic 2PC Coordinator<br/>Commit Winner in 0.54 ms • Prune Losers"]
     end
 
     subgraph Tier4 ["Tier 4: Zero-Downtime Hot Deploy (4.89 µs)"]
@@ -228,7 +182,7 @@ flowchart TD
     end
 
     PROMPT --> ALETHEIA
-    ALETHEIA -- "Math & Logic Validated" --> MNEMON & THANATON & KRONOS
+    ALETHEIA -- "Logic Validated (Escalate to Real OS)" --> MNEMON & THANATON & KRONOS
     MNEMON & THANATON & KRONOS --> HYPERION
     HYPERION --> LETHE
     LETHE --> COORD
@@ -241,39 +195,17 @@ flowchart TD
 2. **Phase 2: Instant Multiverse Speculation (`Thanaton` + `Mnemon-DB` + `Kronos` — 7.42 ms):**
    The agent tests 16 parallel approaches simultaneously. `Mnemon-DB` provisions 16 zero-copy database branches in **1.8 ms** (0 extra bytes). `Thanaton` warm-boots 16 isolated MicroVMs in **7.42 ms**. `Kronos` pins each timeline to a deterministic synthetic clock.
 3. **Phase 3: Sub-Core Pacing & Zero Thrashing (`Hyperion` — 0.69 µs dispatch):**
-   `Hyperion SCX` paces all 16 parallel test executions across CPU cores, eliminating noisy-neighbor starvation by **99.81%**. If an approach leaks memory, `Hyperion MemReclaim` sweeps cold pages in **66.55 µs** instead of crashing the host.
+   `Hyperion SCX` paces all parallel test executions across CPU cores, eliminating noisy-neighbor starvation by **99.81%**. If an approach leaks memory, `Hyperion MemReclaim` sweeps cold pages in **66.55 µs** instead of crashing the host.
 4. **Phase 4: Instant Telemetry & Winner Commit (`Lethe` + `Atomic 2PC Coordinator` — 0.54 ms):**
-   `Lethe` ingests execution telemetry and database WAL mutations into columnar Parquet at **948,000 events/sec**. The agent queries analytical results in **3.14 ms**, selects the best candidate, and the **Atomic Coordinator** commits the winner while incinerating the 15 losers in **0.54 ms**.
+   `Lethe` ingests execution telemetry and database WAL mutations into columnar Parquet at high throughput. The agent queries analytical results, selects the best candidate, and the **Atomic Coordinator** commits the winner while incinerating losers in **0.54 ms**.
 5. **Phase 5: Zero-Downtime Hot Deploy (`Acheron` — 4.89 µs):**
    The winning code is hot-swapped into production. `Acheron` transfers the active TCP sockets using eBPF `roam` in **4.89 µs**, delivering zero connection resets, zero packet loss, and zero 502 errors to end users.
 
 ---
 
-### Part 3: Transparency Matrix: Verified vs. Pending Lab Benchmarks
+### Part 3: The 5 AI Model Integration Modalities
 
-We believe in physical hardware verification. The following tracks verified numbers versus laboratory runs currently pending:
-
-| Test Scenario | Status | Measured Score | Pending Physical Testbed |
-| :--- | :--- | :--- | :--- |
-| **Aletheia In-Memory Core** | **VERIFIED** | **1.09 µs / op** (911k ops/s) | Complete |
-| **Symbolic Canonicalizer** | **VERIFIED** | **< 10 µs** per polynomial check | Complete |
-| **Micro-CoW Session Fork** | **VERIFIED** | **< 100 ns** (.fork()) | Complete |
-| **Micro-Fuzzing (1,000 runs)** | **VERIFIED** | **262 µs** total execution | Complete |
-| **Thanaton Virtual UFFD Boot** | **VERIFIED** | **14.2 ms** (UFFD prefetch) | Complete |
-| **Mnemon Reflink DB Fork** | **VERIFIED** | **1.8 ms** zero-copy branch | Complete |
-| **Acheron Live Socket Handover**| **VERIFIED** | **4.89 µs** fd transfer | Complete |
-| **Lethe Streaming WAL Throughput**| **VERIFIED**| **215,924 mutations / sec** | Complete |
-| **Hyperion Memory Reclaim** | **VERIFIED** | **66.55 µs** reclaim | Complete |
-| *Thanaton Intel IAA Acceleration* | *PENDING LAB* | Target: **3.8 ms** (4.5x compression) | Bare-metal Intel Xeon Scalable IAA run scheduled |
-| *Lethe Direct NVMe Character I/O* | *PENDING LAB* | Target: **1.2 GB/s** direct-to-disk | Bare-metal xNVMe passthrough testbed scheduled |
-| *Hyperion 10,000-VM Sched_ext* | *PENDING LAB* | Target: **< 100 µs** sub-core slice | 128-core cluster multi-tenant saturation scheduled |
-| *GPU Direct Ring Buffer (vLLM)* | *PENDING LAB* | Target: **< 50 µs** token sidecar | Dual H100 PCIe Gen5 tensor-parallel cluster run scheduled |
-
----
-
-### Part 4: The 5 AI Model Integration Modalities
-
-Frontier AI models and research labs integrate Aletheia through 5 native interfaces:
+Frontier AI models and autonomous agent harnesses integrate Aletheia through 5 native interfaces:
 
 ```mermaid
 flowchart LR
@@ -317,7 +249,7 @@ Plugs directly into **Anthropic Claude Desktop**, **Cursor**, **Windsurf**, and 
 }
 ```
 
-#### Modality 2: OpenAI / Anthropic / Gemini Tool Schema Exporter
+#### Modality 2: Function Calling Schema (OpenAI / Gemini / Anthropic)
 Generate ready-to-use function calling schemas with zero manual JSON drafting:
 ```python
 import openai
@@ -373,46 +305,20 @@ aletheia fuzz 1000
 
 ---
 
-### In-Terminal Billboard: Smart Restricted Exception
-When untrusted agent code attempts host filesystem, network, or subprocess operations:
-```python
-v.eval("import subprocess; subprocess.run(['npm', 'test'])")
-```
-Output:
-```text
-======================================================================
-[E0412] ALETHEIA RESTRICTED OPERATION (FREE IN-MEMORY TIER)
-======================================================================
-  --> Code Attempted: `import subprocess`
-  --> Reason: Process spawning and shell commands require Thanaton MicroVMs
+### Part 4: Developer Cloud Escalation (Optional)
 
-Need full terminal commands, package installs, or multi-file builds?
-Upgrade to Thanaton Cloud Sandboxes (sub-8ms Hardware MicroVMs):
-  Signup: POST https://compiler.theeducode.com/v1/auth/signup
-  Control Plane: https://control.theeducode.com
-  Quickstart: import thanaton; client = thanaton.Client(api_key="esk_live_...")
-======================================================================
-```
+When an agent needs to execute shell commands, compile source code in Linux sandboxes, or spin up PostgreSQL databases, developers can optionally connect to the CIEL Sovereign Cloud API.
 
----
-
-### Part 5: The Escalation Continuum & Live Developer Quickstart
-
-When an autonomous agent transitions from in-memory math, logic, and AST checks to full hardware compilation, shell commands, or database transactions, it escalates to the live **CIEL Sovereign Cloud**.
-
-#### Step 1: Self-Provisioning Free Tier API Key (Zero Credit Card Required)
-Any autonomous agent or developer can programmatically register via the public API:
-
+#### Step 1: Self-Provisioning Free API Key (No Credit Card Required)
 ```http
 POST https://compiler.theeducode.com/v1/auth/signup
 Content-Type: application/json
 
 {
-  "email": "agent@theeducode.com",
-  "name": "Autonomous Agent"
+  "email": "developer@example.com",
+  "name": "AI Agent Developer"
 }
 ```
-*(Fallback Direct IP: `http://13.126.155.62:8080/v1/auth/signup`)*
 
 **Response (`201 Created`):**
 ```json
@@ -428,26 +334,20 @@ Content-Type: application/json
 }
 ```
 
-The issued key is a **unified platform key** that grants access across all three live engines.
-
----
-
 #### Step 2: Multi-Language Code Compilation & Execution (Eschaton)
-Execute code across 7 native languages in isolated Linux kernel sandboxes with pre-compiled headers and zero-dependency runtimes:
-
 ```python
 import urllib.request, json
 
 payload = {
-    "source_code": "print('Hello from Eschaton!')",
+    "source_code": "print('Hello from Eschaton sandbox!')",
     "language_id": 71,  # 71 = Python, 54 = C++20, 62 = Java 21, 63 = Node.js, 60 = Go, 73 = Rust
     "test_cases": [
-        {"id": 1, "stdin": "", "expected_output": "Hello from Eschaton!"}
+        {"id": 1, "stdin": "", "expected_output": "Hello from Eschaton sandbox!"}
     ]
 }
 
 req = urllib.request.Request(
-    "https://compiler.theeducode.com/v1/execute", # or http://13.126.155.62:8080/v1/execute
+    "https://compiler.theeducode.com/v1/execute",
     data=json.dumps(payload).encode(),
     headers={
         "Content-Type": "application/json",
@@ -461,117 +361,19 @@ with urllib.request.urlopen(req) as resp:
     print("Execution Result:", result)
 ```
 
-**Check Account Balance & Quota:**
-```bash
-curl -H "X-API-Key: <your_api_key>" https://compiler.theeducode.com/v1/account
-```
-
----
-
 #### Step 3: Hardware MicroVM Sandboxes (Thanaton)
-Provision full KVM hardware microVM sandboxes with dedicated vCPU, memory quotas, and scale-to-zero snapshots:
-
 ```python
 import thanaton
 
 client = thanaton.Client(
-    base_url="https://control.theeducode.com",  # or http://13.126.155.62:4000
+    base_url="https://control.theeducode.com",
     api_key="<your_provisioned_api_key>"
 )
 
-# 1. Provision a 256MB MicroVM (Free tier allows up to 3 projects)
+# Provision a 256MB MicroVM
 sbx = client.sandboxes.create(runtime="python", memory_mb=256)
 print(f"Booted Sandbox {sbx.id} (Status: {sbx.state})")
-
-# 2. Check tenant allocations & whoami
-whoami = client._request("GET", "/api/v1/auth/whoami")
-print("Tenant Status:", whoami)
 ```
-
-**Parallel MCTS Multiverse Speculation Engine (`POST /api/v1/speculate`):**
-Evaluate candidate patches in parallel with sub-50µs in-memory AST syntax pruning before touching hardware microVMs:
-```bash
-curl -X POST https://control.theeducode.com/api/v1/speculate \
-  -H "Content-Type: application/json" \
-  -d '{
-    "candidates": [
-      {"id": "branch-1", "patch": "def solve():\n    return 42", "strategy": "ATOMIC_CAS"},
-      {"id": "branch-2", "patch": "while True: pass", "strategy": "UNBOUNDED"}
-    ],
-    "test_command": "pytest"
-  }'
-```
-
----
-
-#### Step 4: Serverless PostgreSQL & Zero-Copy Branching (Mnemon-DB)
-Every provisioned unified key (`esk_live_...`) is cryptographically mapped to an isolated tenant namespace with automatic cgroup resource limits and instant branch-fork capabilities.
-
-**1. Inspect Tenant Identity & Quotas (`whoami`):**
-```bash
-curl -H "X-API-Key: <your_provisioned_api_key>" https://db.theeducode.com/v1/auth/whoami
-```
-*Response (`200 OK`):*
-```json
-{
-  "status": "authenticated",
-  "account_id": "41714f22-cd52-4abf-bcf7-8878ea05db4e",
-  "email": "Autonomous Agent",
-  "tier": "free_hacker",
-  "databases": [],
-  "tier_details": {
-    "max_databases": 1,
-    "max_memory_mb": 256,
-    "vcpus": 1,
-    "disk_quota_mb": 500,
-    "idle_timeout_sec": 180,
-    "max_branches": 1
-  }
-}
-```
-
-**2. Provision an On-Demand Isolated Database:**
-```python
-import urllib.request, json
-
-payload = {
-    "tenant_id": "agent_prod_db",
-    "template": "postgres-default"
-}
-
-req = urllib.request.Request(
-    "https://db.theeducode.com/v1/tenants/provision",
-    data=json.dumps(payload).encode(),
-    headers={
-        "Content-Type": "application/json",
-        "X-API-Key": "<your_provisioned_api_key>"
-    },
-    method="POST"
-)
-
-with urllib.request.urlopen(req) as resp:
-    result = json.loads(resp.read().decode())
-    print("Provisioned DB:", result)
-```
-*Response (`201 Created`):*
-```json
-{
-  "tenant_id": "agent_prod_db",
-  "state": "RUNNING",
-  "tier": "free_hacker",
-  "max_memory_mb": 256,
-  "port": 16003,
-  "socket_path": "/tmp/.s.PGSQL.16003",
-  "cgroup_path": "/sys/fs/cgroup/mnemon/agent_prod_db"
-}
-```
-
-**3. Direct PostgreSQL Wire Protocol Connection:**
-Connect using standard PostgreSQL client tools (`psql`, `psycopg2`, `pgx`, `TypeORM`, or raw wire sockets):
-```bash
-psql "host=postgres.theeducode.com port=5432 user=postgres dbname=agent_prod_db sslmode=disable"
-```
-*(Direct IP: `3.6.127.83:5432`)*
 
 ---
 
@@ -584,3 +386,10 @@ psql "host=postgres.theeducode.com port=5432 user=postgres dbname=agent_prod_db 
 | **MicroVM Sandboxes**| Max 3 Projects | **`402 Payment Required`** | `{"code": "PROJECT_QUOTA_EXCEEDED", "max_allowed": 3}` |
 | **Rate Limit** | 10 RPS | **`429 Too Many Requests`** | `{"error": "rate limit exceeded for your tier"}` |
 
+---
+
+### Repository & Artifact Links
+- **GitHub Repository:** [https://github.com/MOHITRAJDEO12345/ciel-Aletheia](https://github.com/MOHITRAJDEO12345/ciel-Aletheia)
+- **Container Registry:** `ghcr.io/mohitrajdeo12345/ciel-aletheia:latest`
+- **Release Assets (v0.1.0):** [https://github.com/MOHITRAJDEO12345/ciel-Aletheia/releases/tag/v0.1.0](https://github.com/MOHITRAJDEO12345/ciel-Aletheia/releases/tag/v0.1.0)
+- **License:** Apache 2.0

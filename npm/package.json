@@ -1,5 +1,5 @@
 {
-  "name": "@mohitrajdeo12345/ciel-aletheia",
+  "name": "ciel-aletheia",
   "version": "0.1.0",
   "description": "CIEL Aletheia: Ultra-low-latency in-memory fuel-metered verification engine for AI reasoning and RL rollouts",
   "type": "module",
@@ -10,7 +10,7 @@
     "url": "git+https://github.com/MOHITRAJDEO12345/ciel-Aletheia.git"
   },
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
+    "access": "public"
   },
   "scripts": {
     "build": "tsc",
