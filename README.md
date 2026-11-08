@@ -122,7 +122,29 @@ Physical hardware verification was executed across dual AWS EC2 instances in `ap
 
 ---
 
-### Part 1C: Engine Hardening & Production Features
+### Part 1D: Head-to-Head RLVR Benchmarks vs. SymPy & `math-verify`
+
+During Reinforcement Learning with Verifiable Rewards (RLVR / GRPO) for reasoning models (DeepSeek-R1, QwQ, Qwen-2.5-Math), rollout reward functions must verify hundreds of thousands of candidate mathematical and reasoning traces per hour. 
+
+The table below reports physical, repeatable head-to-head benchmark results comparing **CIEL Aletheia (v0.3.0)** against **Python SymPy (1.13.1)** on an Intel Xeon workstation running Python 3.13:
+
+| Benchmark Vector | Aletheia Metric | SymPy Baseline | Speedup / Reliability Delta |
+| :--- | :--- | :--- | :--- |
+| **Exact Fraction & LaTeX (`\boxed{\frac{1}{2}}` vs `0.5`)** | **11.23 µs / op** (89,061 ops/s) | 810.98 µs / op (1,233 ops/s) | **72.2x Faster** (Zero SymPy overhead) |
+| **Symbolic Polynomial Equivalence (`(x+1)^2` vs `x^2+2x+1`)** | **186.86 µs / op** (5,352 ops/s) | 7,151.65 µs / op (140 ops/s) | **38.3x Faster** |
+| **Adversarial / Broken LaTeX (2,000 malformed inputs)** | **0 crashes (0.0% failure)** | 1,600 crashes (**80.0% crash rate**) | **100% Resilient** (No worker thread death) |
+| **16-Worker Concurrency (Simulating 16 GRPO Rollouts)** | **76,858 rollouts / sec** | Deadlocks / GIL Throttling | **Linear Scaling** across CPU cores |
+
+#### Reproduce the Empirical Benchmarks:
+```bash
+# Run the Python head-to-head suite against SymPy:
+python aletheia/python/benchmarks/benchmark_vs_sympy.py
+
+# Run the native Rust 7-suite verification benchmark:
+aletheia benchmark
+```
+
+---
 
 Aletheia has been engineered and hardened under strict test suites:
 

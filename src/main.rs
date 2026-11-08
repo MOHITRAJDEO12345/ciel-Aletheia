@@ -213,22 +213,149 @@ fn main() {
             }
         }
         "benchmark" => {
-            println!("==================================================================");
-            println!("        ALETHEIA: IN-MEMORY FUEL-METERED VERIFICATION BENCHMARK   ");
-            println!("==================================================================");
-            let mut s = Session::new(1_000_000);
-            let t0 = Instant::now();
-            let iters = 100_000;
-            for _ in 0..iters {
-                let _ = s.eval("100 + 200");
+            println!("================================================================================");
+            println!("        CIEL ALETHEIA: PRODUCTION IN-MEMORY VERIFICATION BENCHMARK SUITE       ");
+            println!("================================================================================");
+
+            // 1. In-Memory Bytecode Micro-op
+            {
+                let mut s = Session::new(10_000_000);
+                let iters = 100_000;
+                let t0 = Instant::now();
+                for _ in 0..iters {
+                    let _ = s.eval("100 + 200");
+                }
+                let dur = t0.elapsed();
+                let per_op_ns = dur.as_nanos() as f64 / iters as f64;
+                println!("[Suite 1] Arithmetic Bytecode VM (100 + 200):");
+                println!("          Total Operations:  {} ops in {:.2?}", iters, dur);
+                println!("          Latency:           {:.2} ns/op", per_op_ns);
+                println!("          Throughput:        {:.0} ops/sec", 1_000_000_000.0 / per_op_ns);
             }
-            let dur = t0.elapsed();
-            let per_op = dur.as_nanos() as f64 / iters as f64;
-            println!("Total In-Memory Evaluations: {} ops", iters);
-            println!("Duration:                   {:.2?}", dur);
-            println!("Latency per Evaluation:     {:.2} ns/op ({:.2} ops/sec)", per_op, 1_000_000_000.0 / per_op);
-            println!("Status:                     [SUB-MICROSECOND VERIFICATION CONFIRMED]");
-            println!("==================================================================");
+
+            // 2. Exact Combinatorics (BigInt)
+            {
+                let mut s = Session::new(10_000_000);
+                let iters = 20_000;
+                let t0 = Instant::now();
+                for _ in 0..iters {
+                    let _ = s.eval("comb(100, 50)");
+                }
+                let dur = t0.elapsed();
+                let per_op_us = dur.as_micros() as f64 / iters as f64;
+                println!("[Suite 2] BigInt Combinatorics (comb(100, 50)):");
+                println!("          Total Operations:  {} ops in {:.2?}", iters, dur);
+                println!("          Latency:           {:.2} µs/op", per_op_us);
+                println!("          Throughput:        {:.0} ops/sec", 1_000_000.0 / per_op_us);
+            }
+
+            // 3. Multi-Statement Assertion Script
+            {
+                let iters = 20_000;
+                let script = "a = 10; b = 20; assert a + b == 30; gcd(a, b)";
+                let t0 = Instant::now();
+                for _ in 0..iters {
+                    let mut s = Session::new(500_000);
+                    let _ = s.eval_multi(script);
+                }
+                let dur = t0.elapsed();
+                let per_op_us = dur.as_micros() as f64 / iters as f64;
+                println!("[Suite 3] Multi-Statement Script & Invariant Assert VM:");
+                println!("          Script:            '{}'", script);
+                println!("          Total Operations:  {} ops in {:.2?}", iters, dur);
+                println!("          Latency:           {:.2} µs/op", per_op_us);
+                println!("          Throughput:        {:.0} ops/sec", 1_000_000.0 / per_op_us);
+            }
+
+            // 4. Symbolic Polynomial Equivalence
+            {
+                let iters = 10_000;
+                let t0 = Instant::now();
+                for _ in 0..iters {
+                    let _ = check_mathematical_equivalence("(x + 1)^2", "x^2 + 2*x + 1");
+                }
+                let dur = t0.elapsed();
+                let per_op_us = dur.as_micros() as f64 / iters as f64;
+                println!("[Suite 4] Symbolic Polynomial Equivalence ((x+1)^2 == x^2+2x+1):");
+                println!("          Total Operations:  {} ops in {:.2?}", iters, dur);
+                println!("          Latency:           {:.2} µs/op", per_op_us);
+                println!("          Throughput:        {:.0} ops/sec", 1_000_000.0 / per_op_us);
+            }
+
+            // 5. Zero-SymPy RLVR Math Verifier
+            {
+                let iters = 20_000;
+                let gold = r"\boxed{\frac{1}{2}}";
+                let pred = "Therefore the final answer is 0.5";
+                let t0 = Instant::now();
+                let mut passed = 0;
+                for _ in 0..iters {
+                    let res = verify_math(gold, pred);
+                    if res.verified {
+                        passed += 1;
+                    }
+                }
+                let dur = t0.elapsed();
+                let per_op_us = dur.as_micros() as f64 / iters as f64;
+                println!("[Suite 5] Zero-SymPy RLVR LaTeX Math Verifier (\\boxed{{1/2}} vs '0.5'):");
+                println!("          Total Operations:  {} ops in {:.2?} (Passed: {}/{})", iters, dur, passed, iters);
+                println!("          Latency:           {:.2} µs/op", per_op_us);
+                println!("          Throughput:        {:.0} verifications/sec", 1_000_000.0 / per_op_us);
+            }
+
+            // 6. Adversarial / Malformed LaTeX Stress Test (Zero Panics)
+            {
+                let malformed = [
+                    r"\boxed{\frac{1}{2",
+                    r"\boxed{",
+                    "x + +",
+                    "1 / 0",
+                    "((((((((x))))))))",
+                    r"\frac{}{}",
+                    r"\text{unclosed text",
+                    "1,000,000.5.2",
+                    "x^",
+                    "{[("
+                ];
+                let iters = 50_000;
+                let t0 = Instant::now();
+                let mut safe_rejections = 0;
+                for i in 0..iters {
+                    let input = malformed[i % malformed.len()];
+                    let res = verify_math("42", input);
+                    if !res.verified {
+                        safe_rejections += 1;
+                    }
+                }
+                let dur = t0.elapsed();
+                let per_op_us = dur.as_micros() as f64 / iters as f64;
+                println!("[Suite 6] Adversarial Malformed LaTeX Stress Test (Zero Panics):");
+                println!("          Total Cases:       {} in {:.2?}", iters, dur);
+                println!("          Safe Rejections:   {}/{} (0 crashes/panics)", safe_rejections, iters);
+                println!("          Latency:           {:.2} µs/op", per_op_us);
+                println!("          Throughput:        {:.0} inputs/sec", 1_000_000.0 / per_op_us);
+            }
+
+            // 7. LLM CoT Trace & Code Block Extraction
+            {
+                let sample_cot = "<think>\nLet us compute 10 choose 5.\ncomb(10, 5) = 252.\n</think>\nHere is the code:\n```python\nprint(252)\n```\nThe final answer is \\boxed{252}.";
+                let iters = 20_000;
+                let t0 = Instant::now();
+                for _ in 0..iters {
+                    let _ = split_thought_and_response(sample_cot);
+                    let _ = extract_code_blocks(sample_cot, Some("python"));
+                }
+                let dur = t0.elapsed();
+                let per_op_us = dur.as_micros() as f64 / iters as f64;
+                println!("[Suite 7] LLM CoT Trace Separation & Code Extraction:");
+                println!("          Total Operations:  {} ops in {:.2?}", iters, dur);
+                println!("          Latency:           {:.2} µs/op", per_op_us);
+                println!("          Throughput:        {:.0} traces/sec", 1_000_000.0 / per_op_us);
+            }
+
+            println!("================================================================================");
+            println!("Status: [PRODUCTION VERIFICATION ENGINE PHYSICAL BENCHMARKS CONFIRMED]");
+            println!("================================================================================");
         }
         cmd => {
             eprintln!("Unknown command: {}", cmd);

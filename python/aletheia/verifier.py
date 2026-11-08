@@ -3,6 +3,45 @@ from .bridge import escalate_to_thanaton
 import math
 import time
 import random
+import re
+import ctypes
+import platform
+from pathlib import Path
+
+def _find_and_load_native_lib():
+    system = platform.system()
+    if system == "Windows":
+        names = ["aletheia.dll"]
+    elif system == "Darwin":
+        names = ["libaletheia.dylib", "aletheia.dylib"]
+    else:
+        names = ["libaletheia.so", "aletheia.so"]
+
+    search_dirs = [
+        Path(__file__).parent,
+        Path(__file__).parent.parent.parent / "target" / "release",
+        Path(__file__).parent.parent / "dist",
+    ]
+
+    for d in search_dirs:
+        for name in names:
+            candidate = d / name
+            if candidate.is_file():
+                try:
+                    lib = ctypes.CDLL(str(candidate))
+                    if hasattr(lib, "aletheia_verify_math"):
+                        lib.aletheia_verify_math.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
+                        lib.aletheia_verify_math.restype = ctypes.c_int
+                        return lib
+                except Exception:
+                    continue
+    return None
+
+_NATIVE_LIB = _find_and_load_native_lib()
+
+def is_native_accelerated() -> bool:
+    """Return True if the compiled Rust C-ABI engine is active."""
+    return _NATIVE_LIB is not None
 
 SAFE_BUILTINS = {
     "abs": abs,
@@ -249,11 +288,22 @@ def normalize_math(expr: str) -> str:
     s = re.sub(r"\\(?:d|t)?frac\{([^{}]+)\}\{([^{}]+)\}", r"((\1)/(\2))", s)
     return s.rstrip(".").strip()
 
-def verify_math(gold: str, pred: str) -> bool:
+def verify_math(gold: str, pred: str, prefer_native: bool = True) -> bool:
     """
     Drop-in RLVR Math & LaTeX answer verifier (<5µs, zero SymPy, zero GIL).
     Normalizes LaTeX \\boxed{}, fractions, percentages, thousands commas, and tests exact rational/symbolic equivalence.
+    Uses compiled Rust acceleration when available (sub-microsecond), with transparent pure-Python fallback.
     """
+    if prefer_native and _NATIVE_LIB is not None:
+        try:
+            res = _NATIVE_LIB.aletheia_verify_math(gold.encode("utf-8"), pred.encode("utf-8"))
+            if res == 1:
+                return True
+            elif res == 0:
+                return False
+        except Exception:
+            pass
+
     gold_ext = extract_answer(gold)
     pred_ext = extract_answer(pred)
     gold_norm = normalize_math(gold_ext)

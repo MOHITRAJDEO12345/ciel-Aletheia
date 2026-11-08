@@ -8,6 +8,7 @@ from .verifier import (
     extract_answer,
     extract_boxed,
     normalize_math,
+    is_native_accelerated,
 )
 from .exceptions import AletheiaRestrictedError
 from .bridge import escalate_to_thanaton
@@ -24,6 +25,7 @@ __all__ = [
     "extract_answer",
     "extract_boxed",
     "normalize_math",
+    "is_native_accelerated",
     "AletheiaRestrictedError",
     "escalate_to_thanaton",
     "get_openai_tools",

@@ -7,4 +7,9 @@ build/
 *.egg-info/
 node_modules/
 *.log
+*.dll
+*.so
+*.dylib
+*.exe
+
 
