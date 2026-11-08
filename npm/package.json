@@ -1,5 +1,5 @@
 {
-  "name": "ciel-aletheia",
+  "name": "@mohitrajdeo1234/ciel-aletheia",
   "version": "0.1.0",
   "description": "CIEL Aletheia: Ultra-low-latency in-memory fuel-metered verification engine for AI reasoning and RL rollouts",
   "type": "module",
