@@ -1,6 +1,8 @@
 use aletheia::engine::session::Session;
 use aletheia::engine::fuzzer::Fuzzer;
 use aletheia::engine::symbolic::check_mathematical_equivalence;
+use aletheia::engine::math_verify::verify_math;
+use aletheia::engine::extractor::{extract_code_blocks, split_thought_and_response};
 use aletheia::ipc::mcp::run_mcp_server;
 use std::env;
 use std::time::Instant;
@@ -9,7 +11,11 @@ fn main() {
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
         println!("Aletheia: Ultra-Low-Latency In-Memory Verification Engine (Free Tier)");
-        println!("Usage: aletheia <eval|equiv|telemetry|fuzz|benchmark|mcp> [args...]");
+        println!("Usage: aletheia <command> [args...]");
+        println!("  aletheia verify-math \"\\boxed{{\\frac{{1}}{{2}}}}\" \"0.5\"     (Fast RLVR Math Verifier)");
+        println!("  aletheia extract-answer \"The answer is \\boxed{{42}}.\"        (Extracts boxed/GSM8K answer)");
+        println!("  aletheia extract-code \"```python\\nprint(42)\\n```\"             (Extracts code blocks)");
+        println!("  aletheia run \"a = 10; b = 20; assert a + b == 30; gcd(a, b)\"  (Multi-statement assertions)");
         println!("  aletheia eval \"comb(100, 50)\" [max_fuel]");
         println!("  aletheia equiv \"(x + 1)^2\" \"x^2 + 2*x + 1\"");
         println!("  aletheia telemetry \"x = 100\"");
@@ -24,6 +30,85 @@ fn main() {
             if let Err(e) = run_mcp_server() {
                 eprintln!("MCP Server error: {}", e);
                 std::process::exit(1);
+            }
+        }
+        "verify-math" => {
+            let gold = match args.get(2) {
+                Some(g) => g.as_str(),
+                None => {
+                    eprintln!("[-] Error: Ground truth required. Usage: aletheia verify-math <gold> <pred>");
+                    std::process::exit(1);
+                }
+            };
+            let pred = match args.get(3) {
+                Some(p) => p.as_str(),
+                None => {
+                    eprintln!("[-] Error: Prediction required. Usage: aletheia verify-math <gold> <pred>");
+                    std::process::exit(1);
+                }
+            };
+            let res = verify_math(gold, pred);
+            println!("[+] Math Verification: {}", if res.verified { "PASSED" } else { "FAILED" });
+            println!("    Gold Extracted:    {}", res.gold_extracted);
+            println!("    Pred Extracted:    {}", res.pred_extracted);
+            println!("    Duration:          {} µs", res.duration_us);
+            if !res.verified {
+                std::process::exit(2);
+            }
+        }
+        "extract-answer" => {
+            let text = match args.get(2) {
+                Some(t) => t.as_str(),
+                None => {
+                    eprintln!("[-] Error: Text required. Usage: aletheia extract-answer <text>");
+                    std::process::exit(1);
+                }
+            };
+            let ans = aletheia::engine::math_verify::extract_answer(text);
+            println!("{}", ans);
+        }
+        "extract-code" => {
+            let text = match args.get(2) {
+                Some(t) => t.as_str(),
+                None => {
+                    eprintln!("[-] Error: Text required. Usage: aletheia extract-code <text> [lang]");
+                    std::process::exit(1);
+                }
+            };
+            let lang = args.get(3).map(|s| s.as_str());
+            let blocks = extract_code_blocks(text, lang);
+            let trace = split_thought_and_response(text);
+            if let Some(thought) = trace.thought {
+                println!("--- Thought Trace ---");
+                println!("{}", thought);
+                println!("---------------------");
+            }
+            println!("Extracted {} code block(s):", blocks.len());
+            for (idx, b) in blocks.iter().enumerate() {
+                println!("[Block {} ({})]:\n{}", idx + 1, b.language, b.code);
+            }
+        }
+        "run" => {
+            let script = match args.get(2) {
+                Some(s) => s.as_str(),
+                None => {
+                    eprintln!("[-] Error: Script required. Usage: aletheia run <script> [fuel]");
+                    std::process::exit(1);
+                }
+            };
+            let fuel = args.get(3).and_then(|s| s.parse().ok()).unwrap_or(500_000);
+            let mut s = Session::new(fuel);
+            let t0 = Instant::now();
+            match s.eval_multi(script) {
+                Ok(val) => {
+                    let dur = t0.elapsed();
+                    println!("[+] Multi-Statement Result: {:?}", val);
+                    println!("[+] Duration: {:.2?} | Fuel Remaining: {}", dur, s.fuel);
+                }
+                Err(e) => {
+                    eprintln!("[-] Error: {}", e);
+                    std::process::exit(1);
+                }
             }
         }
         "eval" => {

@@ -24,6 +24,30 @@ pub extern "C" fn aletheia_session_fork(session: *mut Session) -> *mut Session {
 }
 
 #[no_mangle]
+pub extern "C" fn aletheia_verify_math(
+    gold: *const c_char,
+    pred: *const c_char,
+) -> c_int {
+    if gold.is_null() || pred.is_null() {
+        return -1;
+    }
+    let gold_str = match unsafe { CStr::from_ptr(gold) }.to_str() {
+        Ok(s) => s,
+        Err(_) => return -2,
+    };
+    let pred_str = match unsafe { CStr::from_ptr(pred) }.to_str() {
+        Ok(s) => s,
+        Err(_) => return -2,
+    };
+    let res = crate::engine::math_verify::verify_math(gold_str, pred_str);
+    if res.verified {
+        1
+    } else {
+        0
+    }
+}
+
+#[no_mangle]
 pub extern "C" fn aletheia_eval(
     session: *mut Session,
     code: *const c_char,

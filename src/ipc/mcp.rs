@@ -4,6 +4,8 @@ use std::io::{self, BufRead, Write};
 use crate::engine::session::Session;
 use crate::engine::symbolic::check_mathematical_equivalence;
 use crate::engine::fuzzer::Fuzzer;
+use crate::engine::math_verify::verify_math;
+use crate::engine::extractor::{extract_code_blocks, split_thought_and_response, extract_lenient_json};
 
 #[derive(Deserialize, Debug)]
 struct JsonRpcRequest {
@@ -61,7 +63,7 @@ fn handle_mcp_request(method: &str, params: Option<Value>, id: Value) -> JsonRpc
                 },
                 "serverInfo": {
                     "name": "aletheia-verifier",
-                    "version": "0.2.0"
+                    "version": "0.3.0"
                 }
             });
             JsonRpcResponse {
@@ -74,6 +76,56 @@ fn handle_mcp_request(method: &str, params: Option<Value>, id: Value) -> JsonRpc
         "tools/list" => {
             let result = json!({
                 "tools": [
+                    {
+                        "name": "aletheia_verify_math",
+                        "description": "Drop-in Math & LaTeX answer verifier for AI reasoning models (<5µs, zero SymPy, zero GIL). Normalizes LaTeX \\boxed{}, fractions, radicals, percentages, thousands commas, and tests exact rational/symbolic equivalence.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "gold": {
+                                    "type": "string",
+                                    "description": "Ground truth reference answer or expression (e.g. '\\boxed{\\frac{1}{2}}' or '42')"
+                                },
+                                "pred": {
+                                    "type": "string",
+                                    "description": "Candidate model prediction or reasoning output (e.g. 'Therefore, the answer is 0.5')"
+                                }
+                            },
+                            "required": ["gold", "pred"]
+                        }
+                    },
+                    {
+                        "name": "aletheia_extract_answer",
+                        "description": "Extracts the final mathematical answer from free-form LLM Chain-of-Thought (CoT). Scans for \\boxed{...}, GSM8K '#### ...', or 'The answer is ...'.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "text": {
+                                    "type": "string",
+                                    "description": "Raw model output or reasoning trace"
+                                }
+                            },
+                            "required": ["text"]
+                        }
+                    },
+                    {
+                        "name": "aletheia_extract_code",
+                        "description": "Extracts fenced code blocks (```python ... ```) or thought traces (<think> ... </think>) from model outputs.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "text": {
+                                    "type": "string",
+                                    "description": "Raw model completion text"
+                                },
+                                "language": {
+                                    "type": "string",
+                                    "description": "Optional language filter (e.g. 'python', 'json', 'bash')"
+                                }
+                            },
+                            "required": ["text"]
+                        }
+                    },
                     {
                         "name": "aletheia_eval",
                         "description": "Ultra-low-latency in-memory fuel-metered expression evaluation and exact rational/combinatoric math (<1.09µs). Traps runaway loops in <5µs.",
@@ -90,6 +142,24 @@ fn handle_mcp_request(method: &str, params: Option<Value>, id: Value) -> JsonRpc
                                 }
                             },
                             "required": ["code"]
+                        }
+                    },
+                    {
+                        "name": "aletheia_eval_multi",
+                        "description": "Executes multi-statement in-memory test scripts with 'assert' statements, variable assignments, and builtins (abs, min, max, gcd, lcm, comb) in <3µs.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "script": {
+                                    "type": "string",
+                                    "description": "Script with statements separated by ';' or newlines (e.g. 'a = 10; b = 20; assert a + b == 30; gcd(a, b)')"
+                                },
+                                "fuel": {
+                                    "type": "integer",
+                                    "description": "Instruction fuel limit (default: 500000)"
+                                }
+                            },
+                            "required": ["script"]
                         }
                     },
                     {
@@ -142,6 +212,80 @@ fn handle_mcp_request(method: &str, params: Option<Value>, id: Value) -> JsonRpc
             let args = p.get("arguments").cloned().unwrap_or(json!({}));
 
             match tool_name {
+                "aletheia_verify_math" => {
+                    let gold = args.get("gold").and_then(|v| v.as_str()).unwrap_or("");
+                    let pred = args.get("pred").and_then(|v| v.as_str()).unwrap_or("");
+                    let res = verify_math(gold, pred);
+                    let result = json!({
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": format!("Verified: {} (in {}µs)\nGold Extracted: {}\nPred Extracted: {}", 
+                                    res.verified, res.duration_us, res.gold_extracted, res.pred_extracted)
+                            }
+                        ],
+                        "details": res
+                    });
+                    JsonRpcResponse { jsonrpc: "2.0".to_string(), id, result: Some(result), error: None }
+                }
+                "aletheia_extract_answer" => {
+                    let text = args.get("text").and_then(|v| v.as_str()).unwrap_or("");
+                    let ans = crate::engine::math_verify::extract_answer(text);
+                    let result = json!({
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": format!("Extracted Answer: {}", ans)
+                            }
+                        ],
+                        "answer": ans
+                    });
+                    JsonRpcResponse { jsonrpc: "2.0".to_string(), id, result: Some(result), error: None }
+                }
+                "aletheia_extract_code" => {
+                    let text = args.get("text").and_then(|v| v.as_str()).unwrap_or("");
+                    let lang = args.get("language").and_then(|v| v.as_str());
+                    let blocks = extract_code_blocks(text, lang);
+                    let trace = split_thought_and_response(text);
+                    let lenient_json = extract_lenient_json(text);
+                    let result = json!({
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": format!("Extracted {} code blocks", blocks.len())
+                            }
+                        ],
+                        "blocks": blocks,
+                        "thought": trace.thought,
+                        "has_json": lenient_json.is_some(),
+                        "json_payload": lenient_json
+                    });
+                    JsonRpcResponse { jsonrpc: "2.0".to_string(), id, result: Some(result), error: None }
+                }
+                "aletheia_eval_multi" => {
+                    let script = args.get("script").and_then(|v| v.as_str()).unwrap_or("");
+                    let fuel = args.get("fuel").and_then(|v| v.as_u64()).unwrap_or(500_000);
+                    let mut s = Session::new(fuel);
+                    match s.eval_multi(script) {
+                        Ok(val) => {
+                            let result = json!({
+                                "content": [
+                                    {
+                                        "type": "text",
+                                        "text": format!("Multi-Statement Result: {:?}", val)
+                                    }
+                                ],
+                                "result": format!("{:?}", val),
+                                "fuel_remaining": s.fuel
+                            });
+                            JsonRpcResponse { jsonrpc: "2.0".to_string(), id, result: Some(result), error: None }
+                        }
+                        Err(e) => {
+                            let err_json = json!({ "code": -32000, "message": format!("{}", e) });
+                            JsonRpcResponse { jsonrpc: "2.0".to_string(), id, result: None, error: Some(err_json) }
+                        }
+                    }
+                }
                 "aletheia_eval" => {
                     let code = args.get("code").and_then(|v| v.as_str()).unwrap_or("");
                     let fuel = args.get("fuel").and_then(|v| v.as_u64()).unwrap_or(500_000);
@@ -173,12 +317,12 @@ fn handle_mcp_request(method: &str, params: Option<Value>, id: Value) -> JsonRpc
                                         "code": -32001,
                                         "message": format!("EscalationRequired: Operation requires {} - {}", capability.as_str(), reason),
                                         "data": {
-                                            "error": "ESCALATION_REQUIRED",
-                                            "capability": capability.as_str(),
-                                            "attempted": attempted,
-                                            "reason": reason,
-                                            "upgrade_code": upgrade_code,
-                                            "serialized_state": serialized_state,
+                                             "error": "ESCALATION_REQUIRED",
+                                             "capability": capability.as_str(),
+                                             "attempted": attempted,
+                                             "reason": reason,
+                                             "upgrade_code": upgrade_code,
+                                             "serialized_state": serialized_state,
                                         }
                                     })
                                 }

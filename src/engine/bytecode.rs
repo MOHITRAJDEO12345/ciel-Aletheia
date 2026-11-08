@@ -20,6 +20,12 @@ pub enum Op {
     Gt,
     Lte,
     Gte,
+    Abs,
+    Min,
+    Max,
+    Gcd,
+    Lcm,
+    Assert,
     Jump(usize),
     JumpIfFalse(usize),
     Comb, // Combinatorics primitive: comb(n, k)
@@ -40,6 +46,14 @@ impl StackVal {
         match self {
             StackVal::Int(i) => Some(RationalNumber::from_i64(*i)),
             StackVal::Rational(r) => Some(r.clone()),
+            _ => None,
+        }
+    }
+
+    pub fn to_i64(&self) -> Option<i64> {
+        match self {
+            StackVal::Int(i) => Some(*i),
+            StackVal::Rational(r) => r.to_i64(),
             _ => None,
         }
     }
@@ -137,13 +151,19 @@ impl VirtualMachine {
                 Op::Eq => {
                     let b = self.stack.pop().ok_or("Stack underflow")?;
                     let a = self.stack.pop().ok_or("Stack underflow")?;
-                    self.stack.push(StackVal::Bool(a == b));
+                    match (a.as_rational(), b.as_rational()) {
+                        (Some(ra), Some(rb)) => self.stack.push(StackVal::Bool(ra == rb)),
+                        _ => self.stack.push(StackVal::Bool(a == b)),
+                    }
                     self.pc += 1;
                 }
                 Op::Neq => {
                     let b = self.stack.pop().ok_or("Stack underflow")?;
                     let a = self.stack.pop().ok_or("Stack underflow")?;
-                    self.stack.push(StackVal::Bool(a != b));
+                    match (a.as_rational(), b.as_rational()) {
+                        (Some(ra), Some(rb)) => self.stack.push(StackVal::Bool(ra != rb)),
+                        _ => self.stack.push(StackVal::Bool(a != b)),
+                    }
                     self.pc += 1;
                 }
                 Op::Lt => {
@@ -182,11 +202,105 @@ impl VirtualMachine {
                     }
                     self.pc += 1;
                 }
+                Op::Abs => {
+                    let a = self.stack.pop().ok_or("Stack underflow on abs")?;
+                    match a.as_rational() {
+                        Some(ra) => self.stack.push(StackVal::Rational(ra.abs())),
+                        _ => return Err("abs() requires numeric argument".to_string()),
+                    }
+                    self.pc += 1;
+                }
+                Op::Min => {
+                    let b = self.stack.pop().ok_or("Stack underflow on min")?;
+                    let a = self.stack.pop().ok_or("Stack underflow on min")?;
+                    match (a.as_rational(), b.as_rational()) {
+                        (Some(ra), Some(rb)) => {
+                            if ra <= rb {
+                                self.stack.push(a);
+                            } else {
+                                self.stack.push(b);
+                            }
+                        }
+                        _ => return Err("min() requires numeric arguments".to_string()),
+                    }
+                    self.pc += 1;
+                }
+                Op::Max => {
+                    let b = self.stack.pop().ok_or("Stack underflow on max")?;
+                    let a = self.stack.pop().ok_or("Stack underflow on max")?;
+                    match (a.as_rational(), b.as_rational()) {
+                        (Some(ra), Some(rb)) => {
+                            if ra >= rb {
+                                self.stack.push(a);
+                            } else {
+                                self.stack.push(b);
+                            }
+                        }
+                        _ => return Err("max() requires numeric arguments".to_string()),
+                    }
+                    self.pc += 1;
+                }
+                Op::Gcd => {
+                    let b = self.stack.pop().ok_or("Stack underflow on gcd")?;
+                    let a = self.stack.pop().ok_or("Stack underflow on gcd")?;
+                    match (a.to_i64(), b.to_i64()) {
+                        (Some(x), Some(y)) => {
+                            let mut u = x.abs();
+                            let mut v = y.abs();
+                            while v != 0 {
+                                let t = v;
+                                v = u % v;
+                                u = t;
+                            }
+                            self.stack.push(StackVal::Int(u));
+                        }
+                        _ => return Err("gcd() requires integer arguments".to_string()),
+                    }
+                    self.pc += 1;
+                }
+                Op::Lcm => {
+                    let b = self.stack.pop().ok_or("Stack underflow on lcm")?;
+                    let a = self.stack.pop().ok_or("Stack underflow on lcm")?;
+                    match (a.to_i64(), b.to_i64()) {
+                        (Some(x), Some(y)) => {
+                            let u = x.abs();
+                            let v = y.abs();
+                            if u == 0 || v == 0 {
+                                self.stack.push(StackVal::Int(0));
+                            } else {
+                                let mut a_gcd = u;
+                                let mut b_gcd = v;
+                                while b_gcd != 0 {
+                                    let t = b_gcd;
+                                    b_gcd = a_gcd % b_gcd;
+                                    a_gcd = t;
+                                }
+                                let lcm = (u / a_gcd).saturating_mul(v);
+                                self.stack.push(StackVal::Int(lcm));
+                            }
+                        }
+                        _ => return Err("lcm() requires integer arguments".to_string()),
+                    }
+                    self.pc += 1;
+                }
+                Op::Assert => {
+                    let cond = self.stack.pop().ok_or("Stack underflow on assert")?;
+                    match cond {
+                        StackVal::Bool(true) => {
+                            self.stack.push(StackVal::Bool(true));
+                            self.pc += 1;
+                        }
+                        StackVal::Bool(false) => {
+                            return Err("AssertionFailed: Condition evaluated to false".to_string());
+                        }
+                        _ => return Err("Assertion condition must be boolean".to_string()),
+                    }
+                }
                 Op::Comb => {
                     let k = self.stack.pop().ok_or("Stack underflow")?;
                     let n = self.stack.pop().ok_or("Stack underflow")?;
-                    match (n, k) {
-                        (StackVal::Int(nv), StackVal::Int(kv)) if nv >= 0 && kv >= 0 => {
+                    match (n.to_i64(), k.to_i64()) {
+                        (Some(nv), Some(kv)) if nv >= 0 && kv >= 0 => {
                             let nv_u = nv as u64;
                             let kv_u = kv as u64;
                             let effective_k = if kv_u > nv_u { 0 } else if kv_u > nv_u - kv_u { nv_u - kv_u } else { kv_u };

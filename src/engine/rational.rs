@@ -46,6 +46,16 @@ impl RationalNumber {
         Ok(Self { inner: &self.inner / &other.inner })
     }
 
+    pub fn abs(&self) -> Self {
+        Self {
+            inner: if self.inner < BigRational::zero() {
+                -self.inner.clone()
+            } else {
+                self.inner.clone()
+            },
+        }
+    }
+
     pub fn to_f64(&self) -> f64 {
         self.inner.to_f64().unwrap_or(f64::NAN)
     }
@@ -115,13 +125,13 @@ impl<'de> serde::Deserialize<'de> for RationalNumber {
         D: serde::Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
-        if let Some(pos) = s.find('/') {
-            let num = s[..pos].parse::<i64>().map_err(serde::de::Error::custom)?;
-            let den = s[pos + 1..].parse::<i64>().map_err(serde::de::Error::custom)?;
-            Ok(RationalNumber::new(num, den))
+        if let Some(slash_idx) = s.find('/') {
+            let n: i64 = s[..slash_idx].parse().map_err(serde::de::Error::custom)?;
+            let d: i64 = s[slash_idx + 1..].parse().map_err(serde::de::Error::custom)?;
+            Ok(Self::new(n, d))
         } else {
-            let val = s.parse::<i64>().map_err(serde::de::Error::custom)?;
-            Ok(RationalNumber::from_i64(val))
+            let n: i64 = s.parse().map_err(serde::de::Error::custom)?;
+            Ok(Self::from_i64(n))
         }
     }
 }

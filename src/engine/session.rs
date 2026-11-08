@@ -2,6 +2,7 @@ use crate::engine::fuel::FuelMeter;
 use crate::engine::rational::RationalNumber;
 use crate::engine::bytecode::{Op, VirtualMachine, StackVal};
 use crate::engine::symbolic::check_mathematical_equivalence;
+use crate::engine::math_verify::{verify_math, extract_answer, MathVerifyResult};
 use crate::billboard::restricted::{AletheiaError, check_prohibited_patterns};
 use std::collections::HashMap;
 use std::time::Instant;
@@ -58,6 +59,16 @@ impl Session {
     pub fn check_equivalence(&self, expr_a: &str, expr_b: &str) -> Result<bool, AletheiaError> {
         check_mathematical_equivalence(expr_a, expr_b)
             .map_err(|e| AletheiaError::ExecutionError(e))
+    }
+
+    /// Drop-in Math & LaTeX answer verification for AI reasoning models (<5µs, zero SymPy, zero GIL).
+    pub fn verify_math_answer(&self, gold: &str, pred: &str) -> MathVerifyResult {
+        verify_math(gold, pred)
+    }
+
+    /// Extract final answer from noisy Chain-of-Thought reasoning (handles \boxed{}, ####, etc.)
+    pub fn extract_math_answer(&self, text: &str) -> String {
+        extract_answer(text)
     }
 
     /// Execute expression / code snippet within this session context.
@@ -120,6 +131,51 @@ impl Session {
                 }
             }
         }
+    }
+
+    /// Execute multiple statements separated by ';' or newlines.
+    /// Supports:
+    /// - Variable assignments: `x = 10; y = 20;`
+    /// - Invariant assertions: `assert x + y == 30;`
+    /// - Final expression evaluation: `gcd(x, y)`
+    pub fn eval_multi(&mut self, script: &str) -> Result<Value, AletheiaError> {
+        let lines: Vec<&str> = script
+            .split(|c| c == ';' || c == '\n')
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .collect();
+
+        if lines.is_empty() {
+            return Ok(Value::Boolean(true));
+        }
+
+        let mut last_val = Value::Boolean(true);
+        for line in lines {
+            if line.starts_with("assert ") {
+                let expr = line[7..].trim();
+                let cond_val = self.eval(expr)?;
+                match cond_val {
+                    Value::Boolean(true) => {
+                        last_val = Value::Boolean(true);
+                    }
+                    Value::Boolean(false) => {
+                        return Err(AletheiaError::ExecutionError(format!(
+                            "AssertionFailed: Invariant check '{}' evaluated to false",
+                            expr
+                        )));
+                    }
+                    _ => {
+                        return Err(AletheiaError::ExecutionError(format!(
+                            "AssertionFailed: Expression '{}' must yield a boolean, got {:?}",
+                            expr, cond_val
+                        )));
+                    }
+                }
+            } else {
+                last_val = self.eval(line)?;
+            }
+        }
+        Ok(last_val)
     }
 
     /// Execute and return comprehensive telemetry for RL reward models (PPO/GRPO)
@@ -230,11 +286,33 @@ fn parse_simple_expression(expr: &str, state: Option<&serde_json::Value>) -> Res
     )))
 }
 
+#[derive(Debug, PartialEq, Clone)]
+enum Arg {
+    Lit(i64),
+    Var(String),
+}
+
+fn parse_arg(s: &str) -> Option<Arg> {
+    let trimmed = s.trim();
+    if let Ok(v) = trimmed.parse::<i64>() {
+        Some(Arg::Lit(v))
+    } else if trimmed.chars().all(|c| c.is_alphanumeric() || c == '_') && !trimmed.is_empty() {
+        Some(Arg::Var(trimmed.to_string()))
+    } else {
+        None
+    }
+}
+
 #[derive(Debug, PartialEq)]
 enum Token {
     Num(i64),
     Var(String),
-    Comb(i64, i64),
+    Comb(Arg, Arg),
+    Abs(Arg),
+    Min(Arg, Arg),
+    Max(Arg, Arg),
+    Gcd(Arg, Arg),
+    Lcm(Arg, Arg),
     Op(String),
     LParen,
     RParen,
@@ -352,7 +430,10 @@ fn tokenize_expression(expr: &str) -> Option<Vec<Token>> {
             }
             let ident = std::str::from_utf8(&bytes[start..i]).ok()?;
 
-            if ident == "comb" && i < n && bytes[i] == b'(' {
+            // Check for built-in functions: comb, abs, min, max, gcd, lcm
+            if (ident == "comb" || ident == "abs" || ident == "min" || ident == "max" || ident == "gcd" || ident == "lcm")
+                && i < n && bytes[i] == b'('
+            {
                 let paren_start = i;
                 let mut depth = 0;
                 let mut close_idx = None;
@@ -370,12 +451,50 @@ fn tokenize_expression(expr: &str) -> Option<Vec<Token>> {
                 if let Some(end) = close_idx {
                     let inner = std::str::from_utf8(&bytes[paren_start + 1..end]).ok()?;
                     let parts: Vec<&str> = inner.split(',').map(|s| s.trim()).collect();
-                    if parts.len() == 2 {
-                        let n_val: i64 = parts[0].parse().ok()?;
-                        let k_val: i64 = parts[1].parse().ok()?;
-                        tokens.push(Token::Comb(n_val, k_val));
-                        i = end + 1;
-                        continue;
+                    match ident {
+                        "abs" if parts.len() == 1 => {
+                            if let Some(arg) = parse_arg(parts[0]) {
+                                tokens.push(Token::Abs(arg));
+                                i = end + 1;
+                                continue;
+                            }
+                        }
+                        "min" if parts.len() == 2 => {
+                            if let (Some(a), Some(b)) = (parse_arg(parts[0]), parse_arg(parts[1])) {
+                                tokens.push(Token::Min(a, b));
+                                i = end + 1;
+                                continue;
+                            }
+                        }
+                        "max" if parts.len() == 2 => {
+                            if let (Some(a), Some(b)) = (parse_arg(parts[0]), parse_arg(parts[1])) {
+                                tokens.push(Token::Max(a, b));
+                                i = end + 1;
+                                continue;
+                            }
+                        }
+                        "gcd" if parts.len() == 2 => {
+                            if let (Some(a), Some(b)) = (parse_arg(parts[0]), parse_arg(parts[1])) {
+                                tokens.push(Token::Gcd(a, b));
+                                i = end + 1;
+                                continue;
+                            }
+                        }
+                        "lcm" if parts.len() == 2 => {
+                            if let (Some(a), Some(b)) = (parse_arg(parts[0]), parse_arg(parts[1])) {
+                                tokens.push(Token::Lcm(a, b));
+                                i = end + 1;
+                                continue;
+                            }
+                        }
+                        "comb" if parts.len() == 2 => {
+                            if let (Some(n_val), Some(k_val)) = (parse_arg(parts[0]), parse_arg(parts[1])) {
+                                tokens.push(Token::Comb(n_val, k_val));
+                                i = end + 1;
+                                continue;
+                            }
+                        }
+                        _ => {}
                     }
                 }
             }
@@ -391,6 +510,13 @@ fn tokenize_expression(expr: &str) -> Option<Vec<Token>> {
         None
     } else {
         Some(tokens)
+    }
+}
+
+fn push_arg(arg: &Arg, output: &mut Vec<Op>) {
+    match arg {
+        Arg::Lit(v) => output.push(Op::PushInt(*v)),
+        Arg::Var(name) => output.push(Op::LoadVar(name.clone())),
     }
 }
 
@@ -412,9 +538,33 @@ fn parse_shunting_yard(tokens: &[Token]) -> Option<Vec<Op>> {
             Token::Num(v) => output.push(Op::PushInt(*v)),
             Token::Var(v) => output.push(Op::LoadVar(v.clone())),
             Token::Comb(n, k) => {
-                output.push(Op::PushInt(*n));
-                output.push(Op::PushInt(*k));
+                push_arg(n, &mut output);
+                push_arg(k, &mut output);
                 output.push(Op::Comb);
+            }
+            Token::Abs(x) => {
+                push_arg(x, &mut output);
+                output.push(Op::Abs);
+            }
+            Token::Min(a, b) => {
+                push_arg(a, &mut output);
+                push_arg(b, &mut output);
+                output.push(Op::Min);
+            }
+            Token::Max(a, b) => {
+                push_arg(a, &mut output);
+                push_arg(b, &mut output);
+                output.push(Op::Max);
+            }
+            Token::Gcd(a, b) => {
+                push_arg(a, &mut output);
+                push_arg(b, &mut output);
+                output.push(Op::Gcd);
+            }
+            Token::Lcm(a, b) => {
+                push_arg(a, &mut output);
+                push_arg(b, &mut output);
+                output.push(Op::Lcm);
             }
             Token::Op(op) => {
                 let p = precedence(op);

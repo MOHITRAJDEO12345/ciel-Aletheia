@@ -234,3 +234,47 @@ fn test_relational_comparison_operators_lte_gte_neq() {
     let res8 = s.eval("4 != 4").expect("4 != 4 failed");
     assert_eq!(res8, Value::Boolean(false), "4 != 4 should be false");
 }
+
+
+#[test]
+fn test_eval_multi_and_assertions() {
+    use aletheia::engine::session::Value;
+    let mut s = Session::new(100_000);
+
+    // Multi-statement script with assignments and assert
+    let script = "a = 10; b = 20; assert a + b == 30; gcd(a, b)";
+    let res = s.eval_multi(script).expect("eval_multi failed");
+    assert_eq!(res, Value::Integer(10));
+
+    // Multi-statement with lcm and abs
+    let script2 = "x = -42; abs(x)";
+    let res2 = s.eval_multi(script2).expect("abs failed");
+    assert_eq!(res2, Value::Integer(42));
+
+    // Failing assertion must abort immediately
+    let script_fail = "x = 5; assert x == 10; x * 2";
+    let fail_res = s.eval_multi(script_fail);
+    assert!(fail_res.is_err(), "Failing assert should have returned an error");
+}
+
+#[test]
+fn test_frontier_math_verify_and_extraction() {
+    use aletheia::{verify_math, extract_answer, split_thought_and_response};
+
+    // DeepSeek-R1 style response
+    let raw_cot = "<think>\nLet us compute 15% of 200.\n15/100 * 200 = 30.\n</think>\nTherefore, the final answer is \\boxed{30}.";
+    let trace = split_thought_and_response(raw_cot);
+    assert_eq!(trace.thought.unwrap().trim(), "Let us compute 15% of 200.\n15/100 * 200 = 30.");
+    assert_eq!(trace.response, "Therefore, the final answer is \\boxed{30}.");
+
+    let ans = extract_answer(&trace.response);
+    assert_eq!(ans, "30");
+
+    // Math verification
+    let v_res = verify_math("#### 30", &trace.response);
+    assert!(v_res.verified);
+
+    // Fraction vs decimal
+    let v_frac = verify_math("\\boxed{\\frac{3}{4}}", "The answer is 0.75");
+    assert!(v_frac.verified);
+}

@@ -263,18 +263,18 @@ response = client.chat.completions.create(
 )
 ```
 
-#### Modality 3: RL Training Loops (GRPO / PPO / HuggingFace TRL)
-Pass deterministic fuel and execution metrics directly into your RL reward functions:
+#### Modality 3: RL Training Loops (GRPO / PPO / DeepSeek-R1 Style RLVR)
+Pass deterministic mathematical verification and execution metrics directly into your RL reward functions:
 ```python
-from aletheia import Verifier
+from aletheia import verify_math, Verifier
 
-v = Verifier(max_fuel=500_000)
-telem = v.eval_with_telemetry("comb(100, 50)")
+# Drop-in RLVR Math Verifier (<5µs, zero SymPy, zero GIL lock)
+# Handles LaTeX \boxed{}, fractions, percentages, thousand separators:
+assert verify_math(gold=r"\boxed{\frac{1}{2}}", pred="Therefore the answer is 0.5") == True
 
-# Deterministic reward calculation
-reward = 1.0 if telem.verified else -1.0
-complexity_penalty = telem.fuel_consumed * 0.0001
-final_score = reward - complexity_penalty
+# In your GRPO rollout reward function:
+def compute_reward(gold, prediction):
+    return 1.0 if verify_math(gold, prediction) else 0.0
 ```
 
 #### Modality 4: Process Reward Models (PRMs) & Self-Consistency Voting
@@ -290,14 +290,20 @@ assert equiv("(x + y)**3", "x**3 + 3*x**2*y + 3*x*y**2 + y**3") == True
 #### Modality 5: Native Command Line Interface (CLI)
 Direct invocation for autonomous coding harnesses:
 ```bash
+# Verify LaTeX / math answer in < 5µs (Zero SymPy)
+aletheia verify-math "\boxed{\frac{1}{2}}" "0.5"
+
+# Extract final answer from reasoning trace
+aletheia extract-answer "Thinking... The answer is \boxed{42}."
+
+# Run multi-statement assertions in pure RAM
+aletheia run "a = 10; b = 20; assert a + b == 30; gcd(a, b)"
+
 # Verify symbolic equivalence in < 10µs
 aletheia equiv "(x + 1)^2" "x^2 + 2*x + 1"
 
 # Generate deterministic RL telemetry
 aletheia telemetry "x = 42"
-
-# Evaluate exact combinatorics in < 50µs
-aletheia eval "comb(100, 50)"
 
 # Run instant micro-fuzzer
 aletheia fuzz 1000

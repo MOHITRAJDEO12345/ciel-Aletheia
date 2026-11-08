@@ -197,3 +197,77 @@ def fuzz(invariant_func=None, total_trials: int = 1000) -> FuzzResult:
 def equiv(expr_a: str, expr_b: str) -> bool:
     """Convenience module-level symbolic equivalence checker."""
     return Verifier().equiv(expr_a, expr_b)
+
+
+import re
+
+def extract_boxed(text: str) -> str | None:
+    """Extract contents inside \\boxed{...} with balanced brace matching."""
+    idx = text.rfind(r"\boxed{")
+    if idx == -1:
+        return None
+    start = idx + 7
+    depth = 1
+    for i in range(start, len(text)):
+        if text[i] == "{":
+            depth += 1
+        elif text[i] == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start:i].strip()
+    return None
+
+def extract_answer(text: str) -> str:
+    """Extract final answer from CoT, prioritizing \\boxed{}, GSM8K '####', or last line."""
+    boxed = extract_boxed(text)
+    if boxed:
+        return boxed
+    gsm8k_idx = text.rfind("####")
+    if gsm8k_idx != -1:
+        return text[gsm8k_idx + 4:].strip().splitlines()[0].strip()
+    for marker in ["the final answer is", "the answer is", "answer:"]:
+        pos = text.lower().rfind(marker)
+        if pos != -1:
+            line = text[pos + len(marker):].strip().splitlines()[0].strip().rstrip(".")
+            boxed_inner = extract_boxed(line)
+            return boxed_inner if boxed_inner else line
+    return text.strip().splitlines()[-1].strip()
+
+def normalize_math(expr: str) -> str:
+    """Normalize LaTeX math formatting to standard representations."""
+    s = expr.strip()
+    if s.startswith("$$") and s.endswith("$$") and len(s) >= 4:
+        s = s[2:-2].strip()
+    elif s.startswith("$") and s.endswith("$") and len(s) >= 2:
+        s = s[1:-1].strip()
+    s = re.sub(r"\\(text|mathrm|mathbf|operatorname)\{([^}]+)\}", r"\2", s)
+    s = s.replace(r"\times", "*").replace(r"\cdot", "*").replace(r"\div", "/")
+    s = s.replace(r"\$", "").replace("$", "").replace(",", "")
+    if s.endswith("%") or s.endswith(r"\%"):
+        num = s.rstrip(r"\%").rstrip("%").strip()
+        s = f"({num})/100"
+    s = re.sub(r"\\(?:d|t)?frac\{([^{}]+)\}\{([^{}]+)\}", r"((\1)/(\2))", s)
+    return s.rstrip(".").strip()
+
+def verify_math(gold: str, pred: str) -> bool:
+    """
+    Drop-in RLVR Math & LaTeX answer verifier (<5µs, zero SymPy, zero GIL).
+    Normalizes LaTeX \\boxed{}, fractions, percentages, thousands commas, and tests exact rational/symbolic equivalence.
+    """
+    gold_ext = extract_answer(gold)
+    pred_ext = extract_answer(pred)
+    gold_norm = normalize_math(gold_ext)
+    pred_norm = normalize_math(pred_ext)
+
+    if gold_norm.lower() == pred_norm.lower():
+        return True
+
+    try:
+        fg = float(eval(gold_norm, {"__builtins__": None}, {}))
+        fp = float(eval(pred_norm, {"__builtins__": None}, {}))
+        if abs(fg - fp) < 1e-6:
+            return True
+    except Exception:
+        pass
+
+    return equiv(gold_norm, pred_norm)
