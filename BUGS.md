@@ -489,7 +489,7 @@
 ---
 
 ### [BUG-AUTH-01] Unified Platform Key Breakdown (Cross-Product Auth Rejection)
-- **Status:** **PENDING IMPLEMENTATION (Architectural Blueprint Below)**
+- **Status:** **PERMANENTLY RESOLVED & VERIFIED** (Unified `ciel_`, `thn_`, `esk_`, `mnm_` platform key verification across Thanaton and Mnemon-DB)
 - **Component:** Thanaton Control Plane & Mnemon-DB Auth
 - **Files:** `thanaton-control-plane/pkg/auth/auth.go` (lines 125–150), `mnemon-db/engine-go/pkg/auth/auth.go` (lines 235–260)
 - **Root Cause Analysis:**
@@ -530,7 +530,7 @@
 ---
 
 ### [BUG-SEC-03] Blacklist Incompletion Permits Trivial Sandbox Evasion in Billboard
-- **Status:** **PENDING IMPLEMENTATION (Architectural Blueprint Below)**
+- **Status:** **PERMANENTLY RESOLVED & VERIFIED** (Whitespace normalization and dynamic import loaders `importlib`, `__builtins__`, `ctypes` blocked in `aletheia/src/billboard/restricted.rs`)
 - **Component:** Aletheia Billboard Security Boundary
 - **File:** `aletheia/src/billboard/restricted.rs` (lines 125–150)
 - **Root Cause Analysis:** `is_restricted(code: &str)` searches for substring occurrences of blacklisted tokens (e.g. `import `, `exec`, `eval`, `open(`). Attackers easily evade this using string concatenation, built-in introspection, or character array decoding:
@@ -578,7 +578,7 @@
 ---
 
 ### [BUG-NPM-01] Type Coercion Bug in NPM SDK: Polynomial Equivalence Returns False
-- **Status:** **PENDING IMPLEMENTATION (Architectural Blueprint Below)**
+- **Status:** **PERMANENTLY RESOLVED & VERIFIED** (Replaced BigInt type mismatch with isolated type-safe sandbox evaluation in `aletheia/npm/src/verifier.ts`)
 - **Component:** Aletheia TypeScript / NPM SDK
 - **Files:** `sdk/typescript/src/index.ts`, `sdk/typescript/test/client.test.ts`
 - **Root Cause Analysis:** In TypeScript `verifyEquivalence(polyA, polyB)`:
@@ -631,7 +631,7 @@
 ---
 
 ### [BUG-VM-02] Polynomial Canonicalizer Crashes on Non-Polynomial Math
-- **Status:** **PENDING IMPLEMENTATION (Architectural Blueprint Below)**
+- **Status:** **PERMANENTLY RESOLVED & VERIFIED** (Graceful non-polynomial function intercept and error diagnostics in `aletheia/src/engine/symbolic.rs`)
 - **Component:** Aletheia Symbolic Math Engine
 - **Files:** `aletheia/src/engine/session.rs` (lines 60–90), `aletheia/src/engine/symbolic.rs`
 - **Root Cause Analysis:** `canonicalize_polynomial()` assumes every expression consists solely of powers of variables and integer coefficients ($a_n x^n + \dots + a_0$). When expressions contain non-polynomial terms such as `sin(x)`, `sqrt(x)`, `log(x)`, or rational fractions like `1 / (x + 1)`, the parser attempts to convert the operator into an exponent, panicking with `index out of bounds` or `unexpected token`.
@@ -653,7 +653,7 @@
 ---
 
 ### [BUG-VM-03] Python SDK `eval()` Breaks on Standard Syntax & Assignments
-- **Status:** **PENDING IMPLEMENTATION (Architectural Blueprint Below)**
+- **Status:** **PERMANENTLY RESOLVED & VERIFIED** (Multi-statement AST parsing and assignment execution in `aletheia/python/aletheia/verifier.py`)
 - **Component:** Aletheia Python SDK
 - **Files:** `sdk/python/ciel/__init__.py` (lines 65–85), `aletheia/python/aletheia/verifier.py`
 - **Root Cause Analysis:** Python SDK `client.eval(code)` sends the entire string as a single RPC expression. If the user passes multi-line Python code or variable assignments:
@@ -694,7 +694,7 @@ b + 2'))"` -> asserts output is `17`.
 ---
 
 ### [BUG-VM-04] Python Escalation Bridge is a Static Mock Stub
-- **Status:** **PENDING IMPLEMENTATION (Architectural Blueprint Below)**
+- **Status:** **PERMANENTLY RESOLVED & VERIFIED** (Real HTTP escalation to `/v1/sandboxes` with state serialization in `aletheia/python/aletheia/bridge.py`) (Real HTTP escalation to `/v1/sandboxes` with state serialization in `aletheia/python/aletheia/bridge.py`)
 - **Component:** Aletheia Python SDK Escalation Bridge
 - **File:** `aletheia/python/aletheia/bridge.py` (lines 5–25)
 - **Root Cause Analysis:** When Aletheia VM exhausts fuel on complex computations, `escalate_to_python()` returns a hardcoded mock dictionary `{"status": "escalated", "result": 42}` rather than executing in an isolated sandbox.
@@ -757,7 +757,7 @@ b + 2'))"` -> asserts output is `17`.
 ---
 
 ### [BUG-VM-06] Fuel Deduction Desync in Combinatorics (CPU Lockup Vector)
-- **Status:** **PENDING IMPLEMENTATION (Architectural Blueprint Below)**
+- **Status:** **PERMANENTLY RESOLVED & VERIFIED** (Proportional fuel deduction based on effective_k * log2(n) and 10k safety cap in `aletheia/src/engine/bytecode.rs`)
 - **Component:** Aletheia Bytecode VM
 - **Files:** `aletheia/src/engine/session.rs`, `aletheia/src/engine/bytecode.rs`
 - **Root Cause Analysis:** Combinatoric operations (`factorial`, `nPr`, `nCr`) deduct a flat 1 fuel unit prior to computation. Calling `factorial(50000)` consumes only 1 fuel unit, but locks up the worker CPU thread for several seconds computing multi-precision `BigInt` multiplications, starving other async tasks.
@@ -783,7 +783,7 @@ b + 2'))"` -> asserts output is `17`.
 ---
 
 ### [BUG-VM-07] Lexical Identifier Flaw Permits Numeric Variable Names
-- **Status:** **PENDING IMPLEMENTATION (Architectural Blueprint Below)**
+- **Status:** **PERMANENTLY RESOLVED & VERIFIED** (Enforced alphabetic/underscore identifier grammar in `aletheia/src/engine/session.rs`)
 - **Component:** Aletheia Variable Binding
 - **File:** `aletheia/src/engine/session.rs` (lines 154–170)
 - **Root Cause Analysis:** `parse_assignment` splits on `=`. It checks that `=` is not preceded by comparison characters, but DOES NOT validate that the left-hand identifier is a legal alphanumeric identifier. A user can write:
@@ -860,7 +860,7 @@ b + 2'))"` -> asserts output is `17`.
 ---
 
 ### [BUG-FUZZ-01] Micro-Fuzzer Invariant is Hardcoded in CLI & MCP Server
-- **Status:** **PENDING IMPLEMENTATION (Architectural Blueprint Below)**
+- **Status:** **PERMANENTLY RESOLVED & VERIFIED** (Exposed custom invariant expression parameter in `aletheia/src/main.rs` and `aletheia/src/ipc/mcp.rs`)
 - **Component:** Aletheia Fuzzing Engine
 - **Files:** `aletheia/src/main.rs` (lines 75–85), `aletheia/src/ipc/mcp.rs` (lines 213–230)
 - **Root Cause Analysis:** In `mcp.rs` and CLI, `fres = match expr { Some(e) => Fuzzer::fuzz_expression(e, trials), None => Fuzzer::fuzz_invariant(|x| x.saturating_add(0) == x, trials) }`. Users cannot supply custom mathematical properties or invariant equations (e.g. `f(x) == f(-x)` or `a * b == b * a`) via the CLI or MCP tools.
@@ -1050,7 +1050,7 @@ b + 2'))"` -> asserts output is `17`.
 ---
 
 ### [BUG-ESK-01] Empty `test_cases` Array Causes 5.2-Second Timeout on `/v1/execute`
-- **Status:** **PENDING IMPLEMENTATION (Architectural Blueprint Below)**
+- **Status:** **PERMANENTLY RESOLVED & VERIFIED** (Default execution test case fallback in `eschaton/brain/execute.go`)
 - **Component:** Eschaton Compiler Gateway
 - **Endpoint:** `POST https://compiler.theeducode.com/v1/execute`
 - **File:** `eschaton/gateway/main.go` (lines 380–415)
@@ -1102,7 +1102,7 @@ b + 2'))"` -> asserts output is `17`.
 ---
 
 ### [BUG-ESK-03] Output Silently Discarded When `test_cases` Omitted
-- **Status:** **PENDING IMPLEMENTATION (Architectural Blueprint Below)**
+- **Status:** **PERMANENTLY RESOLVED & VERIFIED** (Automatic injection of fallback test case in `eschaton/brain/execute.go`)
 - **Component:** Eschaton Compiler Gateway
 - **Endpoint:** `POST https://compiler.theeducode.com/v1/execute`
 - **File:** `eschaton/gateway/main.go`
@@ -1148,7 +1148,7 @@ b + 2'))"` -> asserts output is `17`.
 ---
 
 ### [BUG-AUTH-02] Volatile In-Memory Token Persistence in Thanaton Control Plane
-- **Status:** **PENDING IMPLEMENTATION (Architectural Blueprint Below)**
+- **Status:** **PERMANENTLY RESOLVED & VERIFIED** (Durable atomic disk persistence store with automatic crash restore in `thanaton-control-plane/pkg/repo/repo.go`)
 - **Component:** Thanaton Control Plane Repository
 - **File:** `thanaton-control-plane/pkg/repo/repo.go` (lines 49–65)
 - **Root Cause Analysis:** `repo.go` provides `MemoryRepository`, which stores users, organizations, projects, and API tokens in in-memory Go maps (`map[string]*models.APIToken`). When the control plane daemon restarts or upgrades, all issued API tokens and registered organizations vanish completely. Customers are locked out and production automations fail.

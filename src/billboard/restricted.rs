@@ -193,7 +193,7 @@ pub fn check_prohibited_patterns(
     code: &str,
     current_env: Option<&serde_json::Value>,
 ) -> Result<(), AletheiaError> {
-    let forbidden: [(&str, EscalationCapability, &str); 23] = [
+    let forbidden = [
         ("open(", EscalationCapability::RequiresFilesystem, "Direct host filesystem I/O requires a Thanaton MicroVM"),
         ("readFile", EscalationCapability::RequiresFilesystem, "Filesystem read access requires a Thanaton MicroVM"),
         ("writeFile", EscalationCapability::RequiresFilesystem, "Filesystem write access requires a Thanaton MicroVM"),
@@ -214,6 +214,13 @@ pub fn check_prohibited_patterns(
         ("import pty", EscalationCapability::RequiresProcessSpawn, "PTY allocation requires a Thanaton MicroVM"),
         ("fork(", EscalationCapability::RequiresProcessSpawn, "Forking OS processes is strictly forbidden in Tier 0"),
         ("__import__", EscalationCapability::RequiresProcessSpawn, "Dynamic module imports require Thanaton MicroVMs"),
+        ("importlib", EscalationCapability::RequiresProcessSpawn, "Dynamic module loaders require Thanaton MicroVMs"),
+        ("__builtins__", EscalationCapability::RequiresProcessSpawn, "Accessing raw builtins namespace requires Thanaton MicroVMs"),
+        ("builtins.", EscalationCapability::RequiresProcessSpawn, "Accessing raw builtins namespace requires Thanaton MicroVMs"),
+        ("ctypes", EscalationCapability::RequiresProcessSpawn, "Raw memory and C foreign function loading require Thanaton MicroVMs"),
+        ("dlopen", EscalationCapability::RequiresProcessSpawn, "Dynamic library loading requires Thanaton MicroVMs"),
+        ("shutil.", EscalationCapability::RequiresFilesystem, "Filesystem hierarchy operations require Thanaton MicroVMs"),
+        ("os.system", EscalationCapability::RequiresProcessSpawn, "OS system calls require Thanaton MicroVMs"),
         ("eval(", EscalationCapability::RequiresProcessSpawn, "Unconstrained eval requires Thanaton MicroVM execution"),
         ("exec(", EscalationCapability::RequiresProcessSpawn, "Unconstrained exec requires Thanaton MicroVM execution"),
         ("compile(", EscalationCapability::RequiresProcessSpawn, "Unconstrained bytecode compilation requires Thanaton MicroVMs"),
@@ -222,8 +229,23 @@ pub fn check_prohibited_patterns(
     let state = current_env.cloned().unwrap_or(json!({}));
     let sanitized = strip_comments_and_strings(code);
 
+    // Normalize contiguous whitespace so tabs, multi-spaces, and newlines do not evade detection
+    let mut normalized = String::with_capacity(sanitized.len());
+    let mut last_space = false;
+    for c in sanitized.chars() {
+        if c.is_whitespace() {
+            if !last_space {
+                normalized.push(' ');
+                last_space = true;
+            }
+        } else {
+            normalized.push(c);
+            last_space = false;
+        }
+    }
+
     for (pat, cap, reason) in forbidden {
-        if sanitized.contains(pat) {
+        if normalized.contains(pat) || sanitized.contains(pat) {
             return Err(AletheiaError::RestrictedOperation {
                 capability: cap,
                 attempted: pat.to_string(),

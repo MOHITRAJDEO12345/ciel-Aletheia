@@ -16,13 +16,14 @@ fn main() {
         println!("  aletheia fuzz 1000");
         println!("  aletheia benchmark");
         println!("  aletheia mcp (starts Model Context Protocol server over stdio)");
-        return;
+        std::process::exit(1);
     }
 
     match args[1].as_str() {
         "mcp" => {
             if let Err(e) = run_mcp_server() {
                 eprintln!("MCP Server error: {}", e);
+                std::process::exit(1);
             }
         }
         "eval" => {
@@ -44,6 +45,7 @@ fn main() {
                 }
                 Err(e) => {
                     eprintln!("{}", e);
+                    std::process::exit(1);
                 }
             }
         }
@@ -68,9 +70,13 @@ fn main() {
                     let dur = t0.elapsed();
                     println!("[+] Symbolic Equivalence: {}", is_eq);
                     println!("[+] Verified in: {:.2?}", dur);
+                    if !is_eq {
+                        std::process::exit(2);
+                    }
                 }
                 Err(e) => {
                     eprintln!("[-] Equivalence error: {}", e);
+                    std::process::exit(1);
                 }
             }
         }
@@ -94,6 +100,7 @@ fn main() {
                 }
                 Err(e) => {
                     eprintln!("{}", e);
+                    std::process::exit(1);
                 }
             }
         }
@@ -107,12 +114,16 @@ fn main() {
                     println!("[+] Invariant Verified: {} trials in {} µs (Passed: {})", res.total_cases, res.duration_us, res.passed);
                     if let Some(counter) = res.counter_example {
                         eprintln!("[-] {}", counter);
+                        std::process::exit(1);
                     }
                 }
                 None => {
                     println!("[*] Running micro-fuzzing with {} test vectors for identity invariant 'x + 0 == x'...", count);
                     let res = Fuzzer::fuzz_invariant(|x| x.saturating_add(0) == x, count);
                     println!("[+] Invariant Verified: {} trials in {} µs (Passed: {})", res.total_cases, res.duration_us, res.passed);
+                    if !res.passed {
+                        std::process::exit(1);
+                    }
                 }
             }
         }
@@ -136,6 +147,7 @@ fn main() {
         }
         cmd => {
             eprintln!("Unknown command: {}", cmd);
+            std::process::exit(1);
         }
     }
 }

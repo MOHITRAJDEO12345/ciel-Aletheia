@@ -132,7 +132,27 @@ class Verifier:
                 return math.comb(n, k)
         eval_ctx = dict(SAFE_BUILTINS)
         eval_ctx.update(self.env)
-        return eval(code, eval_ctx)
+        try:
+            return eval(code, eval_ctx)
+        except SyntaxError:
+            import ast
+            parsed = ast.parse(code)
+            if not parsed.body:
+                return None
+            if isinstance(parsed.body[-1], ast.Expr):
+                if len(parsed.body) > 1:
+                    preceding = ast.Module(body=parsed.body[:-1], type_ignores=[])
+                    exec(compile(preceding, "<ast>", "exec"), eval_ctx)
+                last_expr = compile(ast.Expression(body=parsed.body[-1].value), "<ast>", "eval")
+                res = eval(last_expr, eval_ctx)
+            else:
+                exec(compile(parsed, "<ast>", "exec"), eval_ctx)
+                res = None
+
+            for k, v in eval_ctx.items():
+                if k not in SAFE_BUILTINS and not k.startswith("__"):
+                    self.env[k] = v
+            return res
 
     def eval_with_telemetry(self, code: str) -> ExecutionTelemetry:
         """Return deterministic execution telemetry for RL reward functions (GRPO/PPO)."""

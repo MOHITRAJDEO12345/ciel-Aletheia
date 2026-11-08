@@ -74,11 +74,18 @@ export class Verifier {
 
     for (const pt of testPoints) {
       try {
-        const fnA = new Function(...Object.keys(pt), `return Number(${cleanA});`);
-        const fnB = new Function(...Object.keys(pt), `return Number(${cleanB});`);
-        const valA = fnA(...Object.values(pt));
-        const valB = fnB(...Object.values(pt));
-        if (Math.abs(valA - valB) > 1e-6) {
+        const sandbox = Object.create(null);
+        Object.assign(sandbox, pt, {
+          Math,
+          BigInt,
+          Number,
+          abs: Math.abs,
+          min: Math.min,
+          max: Math.max,
+        });
+        const valA = Number(vm.runInNewContext(cleanA, sandbox, { timeout: 50 }));
+        const valB = Number(vm.runInNewContext(cleanB, sandbox, { timeout: 50 }));
+        if (Number.isNaN(valA) || Number.isNaN(valB) || Math.abs(valA - valB) > 1e-6) {
           return false;
         }
       } catch {
@@ -147,8 +154,8 @@ export class Verifier {
         ...this.env,
       });
       return vm.runInNewContext(code, context, { timeout: 100 });
-    } catch {
-      return code;
+    } catch (err) {
+      throw new Error(`In-memory evaluation failed: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 

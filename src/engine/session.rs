@@ -215,8 +215,19 @@ fn parse_simple_expression(expr: &str, state: Option<&serde_json::Value>) -> Res
         return Ok(vec![Op::LoadVar(trimmed.to_string()), Op::Return]);
     }
 
-    // Default string
-    Ok(vec![Op::PushStr(trimmed.to_string()), Op::Return])
+    // Explicit string literals
+    if (trimmed.starts_with('"') && trimmed.ends_with('"') && trimmed.len() >= 2)
+        || (trimmed.starts_with('\'') && trimmed.ends_with('\'') && trimmed.len() >= 2)
+    {
+        let inner = &trimmed[1..trimmed.len() - 1];
+        return Ok(vec![Op::PushStr(inner.to_string()), Op::Return]);
+    }
+
+    // Unrecognized syntax: fail with clear error instead of silent fake success
+    Err(AletheiaError::ExecutionError(format!(
+        "Syntax error: Unrecognized expression or unsupported in-memory statement '{}'. (For complex code, scripts, or OS execution, escalate to Thanaton MicroVM)",
+        trimmed
+    )))
 }
 
 #[derive(Debug, PartialEq)]
