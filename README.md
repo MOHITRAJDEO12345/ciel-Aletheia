@@ -7,6 +7,23 @@
 [![MCP Ready](https://img.shields.io/badge/MCP-2.0_Compliant-purple.svg)](https://modelcontextprotocol.io/)
 [![GitHub Release](https://img.shields.io/github/v/release/MOHITRAJDEO12345/ciel-Aletheia?color=blue)](https://github.com/MOHITRAJDEO12345/ciel-Aletheia/releases)
 
+---
+
+## ⚡ Try the Live Verification & MicroVM Cluster (10,000 Free Runs)
+
+Test the in-memory verifier and sub-12ms Thanaton microVM sandboxes live right now:
+
+* **Interactive In-Browser Tester:** [https://ciel.theeducode.com/alpha-test.html?product=aletheia&token=alpha_guest_10k_free](https://ciel.theeducode.com/alpha-test.html?product=aletheia&token=alpha_guest_10k_free)
+* **Instant Terminal `curl` (Live Cluster Tool Execution):**
+```bash
+curl -X POST "https://ciel.theeducode.com/v1/sandboxes/spawn" \
+  -H "Authorization: Bearer alpha_guest_10k_free" \
+  -H "Content-Type: application/json" \
+  -d '{"runtime": "node22", "command": "node -e \"console.log('Thanaton MicroVM Booted in 7ms | $0 Idle Cost');\""}'
+```
+
+---
+
 **CIEL Aletheia** is a standalone, fuel-metered in-memory bytecode and symbolic verification engine engineered for AI inference, LLM test-time compute, reinforcement learning reward pipelines (PPO / GRPO / Best-of-N), and autonomous agent self-correction.
 
 Licensed under **Apache 2.0**. Sub-microsecond execution latency (**1.09 µs / op**). Zero external dependencies. Zero network calls required for in-memory verification.
